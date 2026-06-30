@@ -1,0 +1,312 @@
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
+import {
+  ArrowLeft, Upload, FileText, FileImage, FileSpreadsheet, Presentation,
+  FileType, FileCode, Notebook as NotebookIcon, Plus, Trash2, X, ExternalLink,
+} from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Progress } from "@/components/ui/progress";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+
+export const Route = createFileRoute("/_authenticated/notebooks/$id")({
+  component: NotebookDetail,
+});
+
+type Note = {
+  id: string; title: string; kind: string; status: string;
+  content: string | null; storage_path: string | null;
+  mime_type: string | null; size_bytes: number | null; created_at: string;
+};
+
+type Job = { id: string; name: string; progress: number };
+
+const KIND_ICON: Record<string, React.ElementType> = {
+  pdf: FileText, word: FileType, powerpoint: Presentation, excel: FileSpreadsheet,
+  image: FileImage, markdown: FileCode, text: FileText, link: ExternalLink,
+};
+
+function kindFromFile(file: File): string {
+  const t = file.type, n = file.name.toLowerCase();
+  if (t.includes("pdf") || n.endsWith(".pdf")) return "pdf";
+  if (n.endsWith(".doc") || n.endsWith(".docx")) return "word";
+  if (n.endsWith(".ppt") || n.endsWith(".pptx")) return "powerpoint";
+  if (n.endsWith(".xls") || n.endsWith(".xlsx") || n.endsWith(".csv")) return "excel";
+  if (t.startsWith("image/")) return "image";
+  if (n.endsWith(".md") || n.endsWith(".markdown")) return "markdown";
+  return "text";
+}
+
+function NotebookDetail() {
+  const { id } = Route.useParams();
+  const navigate = useNavigate();
+  const [nbTitle, setNbTitle] = useState<string>("");
+  const [notes, setNotes] = useState<Note[] | null>(null);
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [open, setOpen] = useState(false);
+  const [viewing, setViewing] = useState<Note | null>(null);
+  const [viewUrl, setViewUrl] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const load = useCallback(async () => {
+    const { data: nb } = await supabase.from("notebooks").select("title").eq("id", id).maybeSingle();
+    if (!nb) { toast.error("Notebook not found"); navigate({ to: "/notebooks" }); return; }
+    setNbTitle(nb.title);
+    const { data, error } = await supabase
+      .from("notes").select("id,title,kind,status,content,storage_path,mime_type,size_bytes,created_at")
+      .eq("notebook_id", id).order("created_at", { ascending: false });
+    if (error) { toast.error(error.message); return; }
+    setNotes(data ?? []);
+  }, [id, navigate]);
+  useEffect(() => { load(); }, [load]);
+
+  async function uploadFiles(files: File[]) {
+    const { data: u } = await supabase.auth.getUser();
+    const uid = u.user!.id;
+    for (const file of files) {
+      const jobId = crypto.randomUUID();
+      setJobs(j => [...j, { id: jobId, name: file.name, progress: 6 }]);
+      const path = `${uid}/${id}/${jobId}-${file.name}`;
+      const tick = setInterval(() => {
+        setJobs(j => j.map(x => x.id === jobId ? { ...x, progress: Math.min(85, x.progress + 7) } : x));
+      }, 220);
+      const { error: upErr } = await supabase.storage.from("notes").upload(path, file, { upsert: false });
+      clearInterval(tick);
+      if (upErr) {
+        setJobs(j => j.filter(x => x.id !== jobId));
+        toast.error(`${file.name}: ${upErr.message}`);
+        continue;
+      }
+      setJobs(j => j.map(x => x.id === jobId ? { ...x, progress: 95 } : x));
+      const { error: insErr } = await supabase.from("notes").insert({
+        user_id: uid, notebook_id: id, title: file.name, kind: kindFromFile(file) as never,
+        status: "ready", storage_path: path, mime_type: file.type || null, size_bytes: file.size,
+      });
+      setJobs(j => j.filter(x => x.id !== jobId));
+      if (insErr) toast.error(insErr.message);
+    }
+    await load();
+    toast.success("Sources added");
+  }
+
+  async function addManual(title: string, content: string, kind: "text" | "markdown") {
+    const { data: u } = await supabase.auth.getUser();
+    const { error } = await supabase.from("notes").insert({
+      user_id: u.user!.id, notebook_id: id, title: title || "Untitled note",
+      kind: kind as never, status: "ready", content,
+    });
+    if (error) { toast.error(error.message); return; }
+    toast.success("Note saved");
+    setOpen(false);
+    load();
+  }
+
+  async function removeNote(n: Note) {
+    if (!confirm(`Delete "${n.title}"?`)) return;
+    if (n.storage_path) await supabase.storage.from("notes").remove([n.storage_path]);
+    await supabase.from("notes").delete().eq("id", n.id);
+    load();
+  }
+
+  async function openNote(n: Note) {
+    setViewing(n); setViewUrl(null);
+    if (n.storage_path) {
+      const { data } = await supabase.storage.from("notes").createSignedUrl(n.storage_path, 60 * 30);
+      setViewUrl(data?.signedUrl ?? null);
+    }
+  }
+
+  return (
+    <div className="min-h-screen bg-background">
+      <header className="sticky top-0 z-40 border-b border-border/60 bg-background/80 backdrop-blur-xl">
+        <div className="mx-auto grid h-16 max-w-[1280px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 px-4 sm:px-6">
+          <Link to="/notebooks" className="inline-flex h-9 w-9 items-center justify-center rounded-full hover:bg-secondary">
+            <ArrowLeft className="h-4 w-4" />
+          </Link>
+          <h1 className="truncate text-base font-semibold sm:text-lg">{nbTitle || "…"}</h1>
+          <Button onClick={() => setOpen(true)} className="gap-2 rounded-full">
+            <Plus className="h-4 w-4" /><span className="hidden sm:inline">Add source</span>
+          </Button>
+        </div>
+      </header>
+
+      <main className="mx-auto max-w-[1280px] px-4 py-8 sm:px-6 sm:py-10">
+        {/* Upload zone */}
+        <DropZone onFiles={uploadFiles} onClickUpload={() => fileRef.current?.click()} />
+        <input ref={fileRef} type="file" multiple hidden
+          accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.csv,.md,.markdown,.txt,image/*"
+          onChange={e => { const f = Array.from(e.target.files ?? []); if (f.length) uploadFiles(f); e.target.value = ""; }} />
+
+        {/* Indexing jobs */}
+        {jobs.length > 0 && (
+          <div className="mt-6 space-y-3">
+            {jobs.map(j => (
+              <div key={j.id} className="rounded-2xl border border-border/70 bg-card p-4">
+                <div className="flex items-center justify-between gap-3 text-sm">
+                  <span className="truncate font-medium">{j.name}</span>
+                  <span className="shrink-0 text-xs text-muted-foreground">Indexing… {j.progress}%</span>
+                </div>
+                <Progress value={j.progress} className="mt-3 h-1.5" />
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Notes list */}
+        <section className="mt-10">
+          <div className="flex items-baseline justify-between">
+            <h2 className="text-lg font-semibold">Sources</h2>
+            <span className="text-xs text-muted-foreground">{notes?.length ?? 0} item{(notes?.length ?? 0) === 1 ? "" : "s"}</span>
+          </div>
+
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {notes === null && Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-2xl" />)}
+            {notes !== null && notes.length === 0 && (
+              <div className="col-span-full rounded-2xl border border-dashed border-border bg-card p-10 text-center">
+                <div className="mx-auto inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 ring-1 ring-emerald-100">
+                  <NotebookIcon className="h-5 w-5 text-emerald-600" />
+                </div>
+                <h3 className="mt-4 text-base font-semibold">No sources yet</h3>
+                <p className="mt-1 text-sm text-muted-foreground">Upload a document or write a note to get started.</p>
+              </div>
+            )}
+            {notes?.map(n => {
+              const Icon = KIND_ICON[n.kind] ?? FileText;
+              return (
+                <div key={n.id} className="group grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-2xl border border-border/70 bg-card p-4 transition hover:shadow-[0_12px_32px_-16px_rgba(0,0,0,0.18)]">
+                  <div className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-secondary">
+                    <Icon className="h-5 w-5 text-foreground/80" />
+                  </div>
+                  <button onClick={() => openNote(n)} className="min-w-0 text-left">
+                    <div className="truncate text-sm font-semibold">{n.title}</div>
+                    <div className="mt-0.5 truncate text-xs uppercase tracking-wide text-muted-foreground">
+                      {n.kind} · {new Date(n.created_at).toLocaleDateString()}
+                    </div>
+                  </button>
+                  <div className="flex shrink-0 items-center gap-1">
+                    <Button size="sm" variant="ghost" className="h-8 px-2 text-xs" onClick={() => openNote(n)}>Open</Button>
+                    <Button size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => removeNote(n)}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      </main>
+
+      {/* Add-source dialog */}
+      <AddSourceDialog open={open} onOpenChange={setOpen}
+        onPickFiles={() => fileRef.current?.click()}
+        onSaveManual={addManual} />
+
+      {/* Viewer */}
+      <Dialog open={!!viewing} onOpenChange={() => { setViewing(null); setViewUrl(null); }}>
+        <DialogContent className="max-w-4xl rounded-2xl p-0 overflow-hidden">
+          <DialogHeader className="px-6 pt-5 pb-3 border-b">
+            <DialogTitle className="truncate pr-8">{viewing?.title}</DialogTitle>
+          </DialogHeader>
+          <div className="max-h-[70vh] overflow-auto p-6">
+            {viewing?.content && (
+              <pre className="whitespace-pre-wrap break-words font-sans text-[14px] leading-relaxed text-foreground/90">{viewing.content}</pre>
+            )}
+            {viewing?.storage_path && viewing.kind === "image" && viewUrl && (
+              <img src={viewUrl} alt={viewing.title} className="mx-auto max-h-[60vh] rounded-xl" />
+            )}
+            {viewing?.storage_path && viewing.kind === "pdf" && viewUrl && (
+              <iframe src={viewUrl} className="h-[65vh] w-full rounded-xl border" title={viewing.title} />
+            )}
+            {viewing?.storage_path && !["image", "pdf"].includes(viewing.kind) && (
+              <div className="text-center text-sm text-muted-foreground">
+                {viewUrl
+                  ? <a href={viewUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-full bg-foreground px-5 py-2.5 text-background"><ExternalLink className="h-4 w-4" /> Download / open</a>
+                  : "Preparing preview…"}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function DropZone({ onFiles, onClickUpload }: { onFiles: (f: File[]) => void; onClickUpload: () => void }) {
+  const [over, setOver] = useState(false);
+  return (
+    <div
+      onDragOver={e => { e.preventDefault(); setOver(true); }}
+      onDragLeave={() => setOver(false)}
+      onDrop={e => { e.preventDefault(); setOver(false); const f = Array.from(e.dataTransfer.files); if (f.length) onFiles(f); }}
+      className={`rounded-3xl border-2 border-dashed p-8 sm:p-12 text-center transition ${over ? "border-emerald-400 bg-emerald-50/40" : "border-border bg-card"}`}
+    >
+      <div className="mx-auto inline-flex h-14 w-14 items-center justify-center rounded-2xl"
+        style={{ background: "linear-gradient(135deg,rgba(16,185,129,.15),rgba(59,130,246,.15))" }}>
+        <Upload className="h-6 w-6 text-emerald-600" />
+      </div>
+      <h3 className="mt-4 text-lg font-semibold">Upload your sources</h3>
+      <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
+        Drop PDFs, Word, PowerPoint, Excel, images, or markdown here — or paste text manually.
+      </p>
+      <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
+        <Button onClick={onClickUpload} className="gap-2 rounded-full"><Upload className="h-4 w-4" /> Choose files</Button>
+      </div>
+      <p className="mt-3 text-xs text-muted-foreground">PDF · DOCX · PPTX · XLSX · CSV · MD · TXT · Images</p>
+    </div>
+  );
+}
+
+function AddSourceDialog({
+  open, onOpenChange, onPickFiles, onSaveManual,
+}: {
+  open: boolean; onOpenChange: (b: boolean) => void;
+  onPickFiles: () => void;
+  onSaveManual: (title: string, content: string, kind: "text" | "markdown") => void;
+}) {
+  const [title, setTitle] = useState("");
+  const [body, setBody] = useState("");
+  const reset = () => { setTitle(""); setBody(""); };
+  return (
+    <Dialog open={open} onOpenChange={(b) => { onOpenChange(b); if (!b) reset(); }}>
+      <DialogContent className="max-w-xl rounded-2xl">
+        <DialogHeader className="flex flex-row items-center justify-between">
+          <DialogTitle>Add a source</DialogTitle>
+          <button onClick={() => onOpenChange(false)} className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
+        </DialogHeader>
+        <Tabs defaultValue="upload" className="mt-2">
+          <TabsList className="w-full">
+            <TabsTrigger value="upload" className="flex-1">Upload file</TabsTrigger>
+            <TabsTrigger value="text" className="flex-1">Write note</TabsTrigger>
+            <TabsTrigger value="markdown" className="flex-1">Markdown</TabsTrigger>
+          </TabsList>
+          <TabsContent value="upload" className="mt-4">
+            <div className="rounded-2xl border border-dashed border-border bg-secondary/40 p-8 text-center">
+              <p className="text-sm text-muted-foreground">Pick any document, presentation, spreadsheet, or image.</p>
+              <Button className="mt-4 rounded-full" onClick={() => { onOpenChange(false); onPickFiles(); }}>
+                <Upload className="h-4 w-4" /> Choose files
+              </Button>
+            </div>
+          </TabsContent>
+          {(["text", "markdown"] as const).map(k => (
+            <TabsContent key={k} value={k} className="mt-4 space-y-3">
+              <Input placeholder="Note title" value={title} onChange={e => setTitle(e.target.value)} />
+              <Textarea rows={8} placeholder={k === "markdown" ? "# Heading\n\nWrite markdown here…" : "Type your note…"}
+                value={body} onChange={e => setBody(e.target.value)} className="rounded-xl" />
+              <DialogFooter>
+                <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
+                <Button onClick={() => onSaveManual(title, body, k)} disabled={!body.trim()}>Save note</Button>
+              </DialogFooter>
+            </TabsContent>
+          ))}
+        </Tabs>
+      </DialogContent>
+    </Dialog>
+  );
+}
