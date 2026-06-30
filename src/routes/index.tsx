@@ -211,6 +211,7 @@ function Landing() {
         <Hero />
         <FeatureCarousel />
       </main>
+      <Footer />
     </div>
   );
 }
