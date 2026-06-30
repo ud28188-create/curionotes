@@ -298,7 +298,10 @@ function AuthPage() {
           </div>
 
           <p className="mt-6 text-center text-[12px] leading-relaxed text-muted-foreground">
-            By continuing, you agree to our Terms of Service and Privacy Policy.
+            By continuing, you agree to our{" "}
+            <Link to="/terms" className="font-medium text-foreground hover:underline">Terms of Service</Link>
+            {" "}and{" "}
+            <Link to="/privacy" className="font-medium text-foreground hover:underline">Privacy Policy</Link>.
           </p>
         </div>
       </div>
