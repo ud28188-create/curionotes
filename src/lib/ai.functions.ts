@@ -113,8 +113,7 @@ export const askNotes = createServerFn({ method: "POST" })
     try {
       const result = await generateText({
         model,
-        // @ts-expect-error - SDK accepts mixed content parts at runtime
-        messages,
+        messages: messages as never,
       });
       return { answer: result.text };
     } catch (e) {
