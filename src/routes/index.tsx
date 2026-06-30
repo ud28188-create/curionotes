@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { Check, Play, FileText, ChevronDown, Github, Twitter } from "lucide-react";
 import { useState } from "react";
 
@@ -50,9 +50,9 @@ function Nav() {
           <a href="#" aria-label="Twitter" className="hidden text-muted-foreground transition-colors hover:text-foreground sm:block">
             <Twitter className="h-[18px] w-[18px]" />
           </a>
-          <a href="#get-started" className="inline-flex h-10 items-center rounded-full bg-foreground px-5 text-[14px] font-semibold text-background transition-transform hover:scale-[1.02]">
+          <Link to="/auth" className="inline-flex h-10 items-center rounded-full bg-foreground px-5 text-[14px] font-semibold text-background transition-transform hover:scale-[1.02]">
             Get Started
-          </a>
+          </Link>
         </div>
       </div>
     </header>
@@ -73,9 +73,9 @@ function Hero() {
         </p>
 
         <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row sm:gap-4">
-          <a href="#get-started" className="inline-flex h-[52px] items-center justify-center rounded-full bg-foreground px-8 text-[15px] font-semibold text-background shadow-[0_8px_24px_-8px_rgba(0,0,0,0.4)] transition-transform hover:scale-[1.02]">
+          <Link to="/auth" className="inline-flex h-[52px] items-center justify-center rounded-full bg-foreground px-8 text-[15px] font-semibold text-background shadow-[0_8px_24px_-8px_rgba(0,0,0,0.4)] transition-transform hover:scale-[1.02]">
             Get Started Free
-          </a>
+          </Link>
           <a href="#demo" className="inline-flex h-[52px] items-center justify-center gap-2 rounded-full border border-border bg-background px-7 text-[15px] font-semibold text-foreground transition-colors hover:bg-secondary">
             <Play className="h-4 w-4 fill-current" />
             See How It Works
