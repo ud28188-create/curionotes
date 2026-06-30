@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Check, Play, FileText, ChevronDown, Github, Twitter } from "lucide-react";
 import { useState } from "react";
+import { Footer } from "@/components/Footer";
 
 export const Route = createFileRoute("/")({
   component: Landing,
