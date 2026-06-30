@@ -105,7 +105,6 @@ export const askNotes = createServerFn({ method: "POST" })
     > = [...multimodalParts, { type: "text", text: data.question }];
 
     const messages = [
-      { role: "system" as const, content: system },
       ...data.history.map((m) => ({ role: m.role, content: m.content })),
       { role: "user" as const, content: userParts },
     ];
@@ -113,6 +112,7 @@ export const askNotes = createServerFn({ method: "POST" })
     try {
       const result = await generateText({
         model,
+        system,
         messages: messages as never,
       });
       return { answer: result.text };
