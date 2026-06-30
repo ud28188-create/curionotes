@@ -15,6 +15,7 @@ import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { AiChat } from "@/components/AiChat";
 
 export const Route = createFileRoute("/_authenticated/notebooks/$id")({
   component: NotebookDetail,
@@ -158,6 +159,14 @@ function NotebookDetail() {
             ))}
           </div>
         )}
+
+        {/* AI chat over selected notes */}
+        <section className="mt-10">
+          <AiChat
+            notebookId={id}
+            notes={(notes ?? []).map(n => ({ id: n.id, title: n.title, kind: n.kind }))}
+          />
+        </section>
 
         {/* Notes list */}
         <section className="mt-10">
