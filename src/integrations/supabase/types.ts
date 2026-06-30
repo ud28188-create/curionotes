@@ -14,6 +14,86 @@ export type Database = {
   }
   public: {
     Tables: {
+      notebooks: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          title?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      notes: {
+        Row: {
+          content: string | null
+          created_at: string
+          id: string
+          kind: Database["public"]["Enums"]["note_kind"]
+          mime_type: string | null
+          notebook_id: string
+          size_bytes: number | null
+          status: Database["public"]["Enums"]["note_status"]
+          storage_path: string | null
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          content?: string | null
+          created_at?: string
+          id?: string
+          kind: Database["public"]["Enums"]["note_kind"]
+          mime_type?: string | null
+          notebook_id: string
+          size_bytes?: number | null
+          status?: Database["public"]["Enums"]["note_status"]
+          storage_path?: string | null
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          content?: string | null
+          created_at?: string
+          id?: string
+          kind?: Database["public"]["Enums"]["note_kind"]
+          mime_type?: string | null
+          notebook_id?: string
+          size_bytes?: number | null
+          status?: Database["public"]["Enums"]["note_status"]
+          storage_path?: string | null
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notes_notebook_id_fkey"
+            columns: ["notebook_id"]
+            isOneToOne: false
+            referencedRelation: "notebooks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -49,7 +129,16 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      note_kind:
+        | "pdf"
+        | "word"
+        | "powerpoint"
+        | "excel"
+        | "image"
+        | "markdown"
+        | "text"
+        | "link"
+      note_status: "pending" | "indexing" | "ready" | "failed"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -176,6 +265,18 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      note_kind: [
+        "pdf",
+        "word",
+        "powerpoint",
+        "excel",
+        "image",
+        "markdown",
+        "text",
+        "link",
+      ],
+      note_status: ["pending", "indexing", "ready", "failed"],
+    },
   },
 } as const
