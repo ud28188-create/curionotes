@@ -81,7 +81,7 @@ function ResetPassword() {
               <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 id="password"
-                type="password"
+                type={showPw ? "text" : "password"}
                 autoComplete="new-password"
                 required
                 placeholder="At least 8 characters"
@@ -89,9 +89,13 @@ function ResetPassword() {
                 onChange={(e) => setPassword(e.target.value)}
                 minLength={8}
                 maxLength={72}
-                className="h-11 rounded-xl pl-9"
+                className="h-11 rounded-xl pl-9 pr-10"
                 disabled={!ready}
               />
+              <button type="button" onClick={() => setShowPw((s) => !s)} aria-label={showPw ? "Hide password" : "Show password"}
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-muted-foreground hover:bg-secondary hover:text-foreground">
+                {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
             </div>
           </div>
 
