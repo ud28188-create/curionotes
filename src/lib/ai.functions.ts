@@ -53,16 +53,16 @@ export const askNotes = createServerFn({ method: "POST" })
 
     for (const n of notes) {
       let body = "";
-      if (n.content && (n.kind === "text" || n.kind === "markdown" || n.kind === "link")) {
+      // Prefer inlined text content (extracted client-side for docx/xlsx/pptx/csv/md/txt)
+      if (n.content && n.content.trim().length > 0) {
         body = n.content.slice(0, MAX_CHARS_PER_NOTE);
       } else if (n.storage_path && (n.kind === "image" || n.kind === "pdf")) {
-        // Download and attach as multimodal
+        // Attach PDFs & images as multimodal parts
         const { data: blob, error: dErr } = await supabase.storage
           .from("notes")
           .download(n.storage_path);
         if (!dErr && blob) {
           const buf = new Uint8Array(await blob.arrayBuffer());
-          // base64 encode
           let bin = "";
           for (let i = 0; i < buf.length; i++) bin += String.fromCharCode(buf[i]);
           const b64 = btoa(bin);
@@ -82,7 +82,7 @@ export const askNotes = createServerFn({ method: "POST" })
           }
         }
       } else {
-        body = `[Binary ${n.kind.toUpperCase()} file "${n.title}" — content not extracted on server. Ask the user to convert to PDF or paste key passages as a text note for deeper analysis.]`;
+        body = `[${n.kind.toUpperCase()} file "${n.title}" — no extractable text found. Ask the user to re-upload or paste key passages.]`;
       }
 
       const section = `### Source: ${n.title} (${n.kind})\n${body}`;

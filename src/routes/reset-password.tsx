@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { z } from "zod";
 import { toast } from "sonner";
-import { Loader2, Lock } from "lucide-react";
+import { Loader2, Lock, Eye, EyeOff } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,8 @@ function ResetPassword() {
   const [ready, setReady] = useState(false);
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
+  const [showPw, setShowPw] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -79,7 +81,7 @@ function ResetPassword() {
               <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 id="password"
-                type="password"
+                type={showPw ? "text" : "password"}
                 autoComplete="new-password"
                 required
                 placeholder="At least 8 characters"
@@ -87,9 +89,13 @@ function ResetPassword() {
                 onChange={(e) => setPassword(e.target.value)}
                 minLength={8}
                 maxLength={72}
-                className="h-11 rounded-xl pl-9"
+                className="h-11 rounded-xl pl-9 pr-10"
                 disabled={!ready}
               />
+              <button type="button" onClick={() => setShowPw((s) => !s)} aria-label={showPw ? "Hide password" : "Show password"}
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-muted-foreground hover:bg-secondary hover:text-foreground">
+                {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
             </div>
           </div>
 
@@ -99,7 +105,7 @@ function ResetPassword() {
               <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 id="confirm"
-                type="password"
+                type={showConfirm ? "text" : "password"}
                 autoComplete="new-password"
                 required
                 placeholder="Repeat password"
@@ -107,9 +113,13 @@ function ResetPassword() {
                 onChange={(e) => setConfirm(e.target.value)}
                 minLength={8}
                 maxLength={72}
-                className="h-11 rounded-xl pl-9"
+                className="h-11 rounded-xl pl-9 pr-10"
                 disabled={!ready}
               />
+              <button type="button" onClick={() => setShowConfirm((s) => !s)} aria-label={showConfirm ? "Hide password" : "Show password"}
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-muted-foreground hover:bg-secondary hover:text-foreground">
+                {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
             </div>
           </div>
 

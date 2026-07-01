@@ -1,14 +1,15 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
 import { toast } from "sonner";
-import { Loader2, Mail, Lock, ArrowLeft } from "lucide-react";
+import { Loader2, Mail, Lock, ArrowLeft, Eye, EyeOff } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable/index";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 
 export const Route = createFileRoute("/auth")({
   component: AuthPage,
@@ -20,7 +21,8 @@ const passwordSchema = z
   .min(8, "Password must be at least 8 characters")
   .max(72, "Password is too long");
 
-type Mode = "signin" | "signup" | "forgot";
+type Mode = "signin" | "signup" | "forgot" | "verify-signup" | "verify-reset";
+const RESEND_COOLDOWN = 30;
 
 function GoogleIcon() {
   return (
@@ -33,23 +35,59 @@ function GoogleIcon() {
   );
 }
 
+function PasswordField({ id, value, onChange, autoComplete, placeholder }: {
+  id: string; value: string; onChange: (v: string) => void; autoComplete: string; placeholder: string;
+}) {
+  const [show, setShow] = useState(false);
+  return (
+    <div className="relative">
+      <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+      <Input
+        id={id}
+        type={show ? "text" : "password"}
+        autoComplete={autoComplete}
+        required
+        placeholder={placeholder}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        minLength={8}
+        maxLength={72}
+        className="h-11 rounded-xl pl-9 pr-10"
+      />
+      <button
+        type="button"
+        onClick={() => setShow((s) => !s)}
+        aria-label={show ? "Hide password" : "Show password"}
+        className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-muted-foreground hover:bg-secondary hover:text-foreground"
+      >
+        {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+      </button>
+    </div>
+  );
+}
+
 function AuthPage() {
   const navigate = useNavigate();
   const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
+  const [otp, setOtp] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
+  const cooldownTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const isVerifying = mode === "verify-signup" || mode === "verify-reset";
 
-  // Redirect if already authenticated
   useEffect(() => {
     let mounted = true;
     supabase.auth.getSession().then(({ data }) => {
-      if (mounted && data.session) navigate({ to: "/dashboard", replace: true });
+      if (mounted && data.session && !isVerifying) navigate({ to: "/dashboard", replace: true });
     });
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
-      if (session && (event === "SIGNED_IN" || event === "INITIAL_SESSION")) {
+      if (session && event === "SIGNED_IN" && !isVerifying) {
         navigate({ to: "/dashboard", replace: true });
       }
     });
@@ -57,7 +95,19 @@ function AuthPage() {
       mounted = false;
       sub.subscription.unsubscribe();
     };
-  }, [navigate]);
+  }, [navigate, isVerifying]);
+
+  function startCooldown() {
+    setCooldown(RESEND_COOLDOWN);
+    if (cooldownTimer.current) clearInterval(cooldownTimer.current);
+    cooldownTimer.current = setInterval(() => {
+      setCooldown((c) => {
+        if (c <= 1) { if (cooldownTimer.current) clearInterval(cooldownTimer.current); return 0; }
+        return c - 1;
+      });
+    }, 1000);
+  }
+  useEffect(() => () => { if (cooldownTimer.current) clearInterval(cooldownTimer.current); }, []);
 
   async function handleEmailSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -70,8 +120,10 @@ function AuthPage() {
           redirectTo: `${window.location.origin}/reset-password`,
         });
         if (error) throw error;
-        toast.success("Check your inbox for a password reset link.");
-        setMode("signin");
+        toast.success("We emailed you a 6-digit code. Valid for 10 minutes.");
+        setMode("verify-reset");
+        setOtp("");
+        startCooldown();
         return;
       }
 
@@ -88,8 +140,10 @@ function AuthPage() {
           },
         });
         if (error) throw error;
-        toast.success("Account created. Check your email to verify your address.");
-        setMode("signin");
+        toast.success("Account created. We sent a 6-digit code to your email.");
+        setMode("verify-signup");
+        setOtp("");
+        startCooldown();
       } else {
         const { error } = await supabase.auth.signInWithPassword({
           email: parsedEmail,
@@ -98,15 +152,63 @@ function AuthPage() {
         if (error) throw error;
       }
     } catch (err: unknown) {
-      const message =
-        err instanceof z.ZodError
-          ? err.issues[0]?.message ?? "Invalid input"
-          : err instanceof Error
-            ? err.message
-            : "Something went wrong";
-      toast.error(message);
+      toast.error(errMsg(err));
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleVerifyOtp(e: React.FormEvent) {
+    e.preventDefault();
+    if (otp.length !== 6) { toast.error("Enter the 6-digit code"); return; }
+    setLoading(true);
+    try {
+      const parsedEmail = emailSchema.parse(email);
+      if (mode === "verify-signup") {
+        const { error } = await supabase.auth.verifyOtp({ email: parsedEmail, token: otp, type: "signup" });
+        if (error) throw error;
+        toast.success("Email confirmed. Welcome!");
+        navigate({ to: "/dashboard", replace: true });
+      } else {
+        // verify-reset
+        const { error } = await supabase.auth.verifyOtp({ email: parsedEmail, token: otp, type: "recovery" });
+        if (error) throw error;
+        // session established — now show new password fields inline
+        if (!newPassword) {
+          toast.info("Code verified. Set a new password below.");
+          return;
+        }
+        if (newPassword !== confirmPassword) throw new Error("Passwords do not match");
+        passwordSchema.parse(newPassword);
+        const { error: upErr } = await supabase.auth.updateUser({ password: newPassword });
+        if (upErr) throw upErr;
+        toast.success("Password updated. You're signed in.");
+        navigate({ to: "/dashboard", replace: true });
+      }
+    } catch (err: unknown) {
+      toast.error(errMsg(err));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleResend() {
+    if (cooldown > 0) return;
+    try {
+      const parsedEmail = emailSchema.parse(email);
+      if (mode === "verify-signup") {
+        const { error } = await supabase.auth.resend({ type: "signup", email: parsedEmail });
+        if (error) throw error;
+      } else if (mode === "verify-reset") {
+        const { error } = await supabase.auth.resetPasswordForEmail(parsedEmail, {
+          redirectTo: `${window.location.origin}/reset-password`,
+        });
+        if (error) throw error;
+      }
+      toast.success("New code sent.");
+      startCooldown();
+    } catch (err: unknown) {
+      toast.error(errMsg(err));
     }
   }
 
@@ -121,8 +223,7 @@ function AuthPage() {
         setGoogleLoading(false);
         return;
       }
-      if (result.redirected) return; // browser is navigating away
-      // Session set; redirect.
+      if (result.redirected) return;
       navigate({ to: "/dashboard", replace: true });
     } catch {
       toast.error("Google sign-in failed. Try again.");
@@ -131,13 +232,16 @@ function AuthPage() {
   }
 
   const title =
-    mode === "signin" ? "Welcome back" : mode === "signup" ? "Create your account" : "Reset your password";
+    mode === "signin" ? "Welcome back"
+      : mode === "signup" ? "Create your account"
+      : mode === "forgot" ? "Reset your password"
+      : mode === "verify-signup" ? "Verify your email"
+      : "Enter reset code";
   const subtitle =
-    mode === "signin"
-      ? "Sign in to continue to CurioNotes."
-      : mode === "signup"
-        ? "Start understanding anything with AI."
-        : "We'll email you a link to set a new password.";
+    mode === "signin" ? "Sign in to continue to CurioNotes."
+      : mode === "signup" ? "Start understanding anything with AI."
+      : mode === "forgot" ? "We'll email you a 6-digit code, valid for 10 minutes."
+      : `We sent a 6-digit code to ${email || "your inbox"}. Valid for 10 minutes.`;
 
   return (
     <div className="min-h-screen bg-background">
@@ -167,7 +271,7 @@ function AuthPage() {
           </div>
 
           <div className="rounded-3xl border border-border/70 bg-card p-7 shadow-[0_8px_30px_-12px_rgba(0,0,0,0.08)]">
-            {mode !== "forgot" && (
+            {!isVerifying && mode !== "forgot" && (
               <>
                 <Button
                   type="button"
@@ -179,7 +283,6 @@ function AuthPage() {
                   {googleLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <GoogleIcon />}
                   Continue with Google
                 </Button>
-
                 <div className="my-5 flex items-center gap-3 text-[12px] text-muted-foreground">
                   <span className="h-px flex-1 bg-border" />
                   OR
@@ -188,113 +291,121 @@ function AuthPage() {
               </>
             )}
 
-            <form onSubmit={handleEmailSubmit} className="space-y-4">
-              {mode === "signup" && (
-                <div className="space-y-1.5">
-                  <Label htmlFor="name" className="text-[13px]">Name</Label>
-                  <Input
-                    id="name"
-                    type="text"
-                    autoComplete="name"
-                    placeholder="Jane Doe"
-                    value={displayName}
-                    onChange={(e) => setDisplayName(e.target.value)}
-                    maxLength={100}
-                    className="h-11 rounded-xl"
-                  />
-                </div>
-              )}
-
-              <div className="space-y-1.5">
-                <Label htmlFor="email" className="text-[13px]">Email</Label>
-                <div className="relative">
-                  <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    id="email"
-                    type="email"
-                    autoComplete="email"
-                    required
-                    placeholder="you@example.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    maxLength={255}
-                    className="h-11 rounded-xl pl-9"
-                  />
-                </div>
-              </div>
-
-              {mode !== "forgot" && (
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="password" className="text-[13px]">Password</Label>
-                    {mode === "signin" && (
-                      <button
-                        type="button"
-                        onClick={() => setMode("forgot")}
-                        className="text-[12.5px] font-medium text-foreground/70 hover:text-foreground"
-                      >
-                        Forgot?
-                      </button>
-                    )}
+            {!isVerifying && (
+              <form onSubmit={handleEmailSubmit} className="space-y-4">
+                {mode === "signup" && (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="name" className="text-[13px]">Name</Label>
+                    <Input id="name" type="text" autoComplete="name" placeholder="Jane Doe"
+                      value={displayName} onChange={(e) => setDisplayName(e.target.value)}
+                      maxLength={100} className="h-11 rounded-xl" />
                   </div>
-                  <div className="relative">
-                    <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                    <Input
-                      id="password"
-                      type="password"
-                      autoComplete={mode === "signup" ? "new-password" : "current-password"}
-                      required
-                      placeholder="At least 8 characters"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      minLength={8}
-                      maxLength={72}
-                      className="h-11 rounded-xl pl-9"
-                    />
-                  </div>
-                </div>
-              )}
-
-              <Button
-                type="submit"
-                disabled={loading || googleLoading}
-                className="h-11 w-full rounded-xl bg-foreground text-[14.5px] font-semibold text-background hover:bg-foreground/90"
-              >
-                {loading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : mode === "signin" ? (
-                  "Sign in"
-                ) : mode === "signup" ? (
-                  "Create account"
-                ) : (
-                  "Send reset link"
                 )}
-              </Button>
-            </form>
 
-            <div className="mt-6 text-center text-[13.5px] text-muted-foreground">
-              {mode === "signin" && (
-                <>
-                  New to CurioNotes?{" "}
-                  <button onClick={() => setMode("signup")} className="font-semibold text-foreground hover:underline">
-                    Create an account
-                  </button>
-                </>
-              )}
-              {mode === "signup" && (
-                <>
-                  Already have an account?{" "}
-                  <button onClick={() => setMode("signin")} className="font-semibold text-foreground hover:underline">
-                    Sign in
-                  </button>
-                </>
-              )}
-              {mode === "forgot" && (
-                <button onClick={() => setMode("signin")} className="font-semibold text-foreground hover:underline">
+                <div className="space-y-1.5">
+                  <Label htmlFor="email" className="text-[13px]">Email</Label>
+                  <div className="relative">
+                    <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input id="email" type="email" autoComplete="email" required placeholder="you@example.com"
+                      value={email} onChange={(e) => setEmail(e.target.value)}
+                      maxLength={255} className="h-11 rounded-xl pl-9" />
+                  </div>
+                </div>
+
+                {mode !== "forgot" && (
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="password" className="text-[13px]">Password</Label>
+                      {mode === "signin" && (
+                        <button type="button" onClick={() => setMode("forgot")}
+                          className="text-[12.5px] font-medium text-foreground/70 hover:text-foreground">
+                          Forgot?
+                        </button>
+                      )}
+                    </div>
+                    <PasswordField id="password" value={password} onChange={setPassword}
+                      autoComplete={mode === "signup" ? "new-password" : "current-password"}
+                      placeholder="At least 8 characters" />
+                  </div>
+                )}
+
+                <Button type="submit" disabled={loading || googleLoading}
+                  className="h-11 w-full rounded-xl bg-foreground text-[14.5px] font-semibold text-background hover:bg-foreground/90">
+                  {loading ? <Loader2 className="h-4 w-4 animate-spin" />
+                    : mode === "signin" ? "Sign in"
+                    : mode === "signup" ? "Create account"
+                    : "Send reset code"}
+                </Button>
+              </form>
+            )}
+
+            {isVerifying && (
+              <form onSubmit={handleVerifyOtp} className="space-y-5">
+                <div className="space-y-2">
+                  <Label className="text-[13px]">6-digit code</Label>
+                  <div className="flex justify-center">
+                    <InputOTP maxLength={6} value={otp} onChange={setOtp}>
+                      <InputOTPGroup>
+                        {[0,1,2,3,4,5].map((i) => (
+                          <InputOTPSlot key={i} index={i} className="h-12 w-12 text-lg" />
+                        ))}
+                      </InputOTPGroup>
+                    </InputOTP>
+                  </div>
+                  <div className="flex items-center justify-between text-[12.5px] text-muted-foreground">
+                    <span>Code expires in 10 minutes.</span>
+                    <button type="button" onClick={handleResend} disabled={cooldown > 0}
+                      className="font-medium text-foreground disabled:text-muted-foreground disabled:no-underline hover:underline">
+                      {cooldown > 0 ? `Resend in ${cooldown}s` : "Resend code"}
+                    </button>
+                  </div>
+                </div>
+
+                {mode === "verify-reset" && (
+                  <div className="space-y-3 border-t border-border pt-4">
+                    <div className="space-y-1.5">
+                      <Label className="text-[13px]">New password</Label>
+                      <PasswordField id="newpw" value={newPassword} onChange={setNewPassword}
+                        autoComplete="new-password" placeholder="At least 8 characters" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-[13px]">Confirm new password</Label>
+                      <PasswordField id="confirmpw" value={confirmPassword} onChange={setConfirmPassword}
+                        autoComplete="new-password" placeholder="Repeat password" />
+                    </div>
+                  </div>
+                )}
+
+                <Button type="submit" disabled={loading || otp.length !== 6 || (mode === "verify-reset" && !newPassword)}
+                  className="h-11 w-full rounded-xl bg-foreground text-[14.5px] font-semibold text-background hover:bg-foreground/90">
+                  {loading ? <Loader2 className="h-4 w-4 animate-spin" />
+                    : mode === "verify-signup" ? "Verify & continue" : "Update password"}
+                </Button>
+
+                <button type="button" onClick={() => { setMode("signin"); setOtp(""); }}
+                  className="block w-full text-center text-[13px] text-muted-foreground hover:text-foreground">
                   Back to sign in
                 </button>
-              )}
-            </div>
+              </form>
+            )}
+
+            {!isVerifying && (
+              <div className="mt-6 text-center text-[13.5px] text-muted-foreground">
+                {mode === "signin" && (
+                  <>New to CurioNotes?{" "}
+                    <button onClick={() => setMode("signup")} className="font-semibold text-foreground hover:underline">Create an account</button>
+                  </>
+                )}
+                {mode === "signup" && (
+                  <>Already have an account?{" "}
+                    <button onClick={() => setMode("signin")} className="font-semibold text-foreground hover:underline">Sign in</button>
+                  </>
+                )}
+                {mode === "forgot" && (
+                  <button onClick={() => setMode("signin")} className="font-semibold text-foreground hover:underline">Back to sign in</button>
+                )}
+              </div>
+            )}
           </div>
 
           <p className="mt-6 text-center text-[12px] leading-relaxed text-muted-foreground">
@@ -307,4 +418,10 @@ function AuthPage() {
       </div>
     </div>
   );
+}
+
+function errMsg(err: unknown) {
+  if (err instanceof z.ZodError) return err.issues[0]?.message ?? "Invalid input";
+  if (err instanceof Error) return err.message;
+  return "Something went wrong";
 }
