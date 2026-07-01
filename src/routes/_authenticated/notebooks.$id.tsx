@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import {
   ArrowLeft, Upload, FileText, FileImage, FileSpreadsheet, Presentation,
   FileType, FileCode, Notebook as NotebookIcon, Plus, Trash2, X, ExternalLink,
+  Download, Pencil,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -16,6 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { AiChat } from "@/components/AiChat";
+import { extractTextFromFile } from "@/lib/file-extract";
 
 export const Route = createFileRoute("/_authenticated/notebooks/$id")({
   component: NotebookDetail,
@@ -34,6 +36,15 @@ const KIND_ICON: Record<string, React.ElementType> = {
   image: FileImage, markdown: FileCode, text: FileText, link: ExternalLink,
 };
 
+// Client-side upload validation
+const MAX_FILE_MB = 25;
+const MAX_FILE_BYTES = MAX_FILE_MB * 1024 * 1024;
+const ALLOWED_EXT = [
+  ".pdf", ".doc", ".docx", ".ppt", ".pptx", ".xls", ".xlsx", ".csv",
+  ".md", ".markdown", ".txt",
+  ".png", ".jpg", ".jpeg", ".webp", ".gif", ".heic", ".bmp", ".svg",
+];
+
 function kindFromFile(file: File): string {
   const t = file.type, n = file.name.toLowerCase();
   if (t.includes("pdf") || n.endsWith(".pdf")) return "pdf";
@@ -45,12 +56,22 @@ function kindFromFile(file: File): string {
   return "text";
 }
 
+function validateFile(file: File): string | null {
+  const n = file.name.toLowerCase();
+  const okExt = ALLOWED_EXT.some((e) => n.endsWith(e)) || file.type.startsWith("image/");
+  if (!okExt) return `"${file.name}" is not a supported format`;
+  if (file.size > MAX_FILE_BYTES) return `"${file.name}" is larger than ${MAX_FILE_MB}MB`;
+  if (file.size === 0) return `"${file.name}" is empty`;
+  return null;
+}
+
 function NotebookDetail() {
   const { id } = Route.useParams();
   const navigate = useNavigate();
   const [nbTitle, setNbTitle] = useState<string>("");
   const [notes, setNotes] = useState<Note[] | null>(null);
   const [jobs, setJobs] = useState<Job[]>([]);
+  const [uploadErrors, setUploadErrors] = useState<string[]>([]);
   const [open, setOpen] = useState(false);
   const [viewing, setViewing] = useState<Note | null>(null);
   const [viewUrl, setViewUrl] = useState<string | null>(null);
@@ -68,15 +89,26 @@ function NotebookDetail() {
   }, [id, navigate]);
   useEffect(() => { load(); }, [load]);
 
-  async function uploadFiles(files: File[]) {
+  async function uploadFiles(rawFiles: File[]) {
+    const errs: string[] = [];
+    const files: File[] = [];
+    for (const f of rawFiles) {
+      const err = validateFile(f);
+      if (err) errs.push(err); else files.push(f);
+    }
+    setUploadErrors(errs);
+    if (errs.length) errs.forEach((e) => toast.error(e));
+    if (!files.length) return;
+
     const { data: u } = await supabase.auth.getUser();
     const uid = u.user!.id;
     for (const file of files) {
       const jobId = crypto.randomUUID();
+      const kind = kindFromFile(file);
       setJobs(j => [...j, { id: jobId, name: file.name, progress: 6 }]);
       const path = `${uid}/${id}/${jobId}-${file.name}`;
       const tick = setInterval(() => {
-        setJobs(j => j.map(x => x.id === jobId ? { ...x, progress: Math.min(85, x.progress + 7) } : x));
+        setJobs(j => j.map(x => x.id === jobId ? { ...x, progress: Math.min(70, x.progress + 6) } : x));
       }, 220);
       const { error: upErr } = await supabase.storage.from("notes").upload(path, file, { upsert: false });
       clearInterval(tick);
@@ -85,10 +117,14 @@ function NotebookDetail() {
         toast.error(`${file.name}: ${upErr.message}`);
         continue;
       }
-      setJobs(j => j.map(x => x.id === jobId ? { ...x, progress: 95 } : x));
+      setJobs(j => j.map(x => x.id === jobId ? { ...x, progress: 82 } : x));
+      // Extract text content client-side so AI can read every format
+      const content = await extractTextFromFile(file, kind);
+      setJobs(j => j.map(x => x.id === jobId ? { ...x, progress: 94 } : x));
       const { error: insErr } = await supabase.from("notes").insert({
-        user_id: uid, notebook_id: id, title: file.name, kind: kindFromFile(file) as never,
+        user_id: uid, notebook_id: id, title: file.name, kind: kind as never,
         status: "ready", storage_path: path, mime_type: file.type || null, size_bytes: file.size,
+        content,
       });
       setJobs(j => j.filter(x => x.id !== jobId));
       if (insErr) toast.error(insErr.message);
@@ -98,6 +134,7 @@ function NotebookDetail() {
   }
 
   async function addManual(title: string, content: string, kind: "text" | "markdown") {
+    if (!content.trim()) { toast.error("Write something first"); return; }
     const { data: u } = await supabase.auth.getUser();
     const { error } = await supabase.from("notes").insert({
       user_id: u.user!.id, notebook_id: id, title: title || "Untitled note",
@@ -124,6 +161,21 @@ function NotebookDetail() {
     }
   }
 
+  async function downloadNote(n: Note) {
+    if (n.storage_path) {
+      const { data } = await supabase.storage.from("notes").createSignedUrl(n.storage_path, 60, { download: n.title });
+      if (data?.signedUrl) window.location.href = data.signedUrl;
+      return;
+    }
+    if (n.content) {
+      const blob = new Blob([n.content], { type: "text/plain;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = `${n.title}.${n.kind === "markdown" ? "md" : "txt"}`;
+      a.click(); URL.revokeObjectURL(url);
+    }
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-40 border-b border-border/60 bg-background/80 backdrop-blur-xl">
@@ -139,13 +191,21 @@ function NotebookDetail() {
       </header>
 
       <main className="mx-auto max-w-[1280px] px-4 py-8 sm:px-6 sm:py-10">
-        {/* Upload zone */}
-        <DropZone onFiles={uploadFiles} onClickUpload={() => fileRef.current?.click()} />
+        <DropZone onFiles={uploadFiles} onClickUpload={() => fileRef.current?.click()} onWrite={() => setOpen(true)} />
         <input ref={fileRef} type="file" multiple hidden
-          accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.csv,.md,.markdown,.txt,image/*"
+          accept={ALLOWED_EXT.join(",") + ",image/*"}
           onChange={e => { const f = Array.from(e.target.files ?? []); if (f.length) uploadFiles(f); e.target.value = ""; }} />
 
-        {/* Indexing jobs */}
+        {uploadErrors.length > 0 && (
+          <div className="mt-4 rounded-2xl border border-destructive/30 bg-destructive/5 p-4 text-sm">
+            <div className="mb-1 font-medium text-destructive">Some files were rejected</div>
+            <ul className="list-inside list-disc text-destructive/90">
+              {uploadErrors.map((e, i) => <li key={i}>{e}</li>)}
+            </ul>
+            <p className="mt-2 text-xs text-muted-foreground">Allowed: PDF, Word, PowerPoint, Excel, images, Markdown. Max {MAX_FILE_MB}MB per file.</p>
+          </div>
+        )}
+
         {jobs.length > 0 && (
           <div className="mt-6 space-y-3">
             {jobs.map(j => (
@@ -160,7 +220,6 @@ function NotebookDetail() {
           </div>
         )}
 
-        {/* AI chat over selected notes */}
         <section className="mt-10">
           <AiChat
             notebookId={id}
@@ -168,7 +227,6 @@ function NotebookDetail() {
           />
         </section>
 
-        {/* Notes list */}
         <section className="mt-10">
           <div className="flex items-baseline justify-between">
             <h2 className="text-lg font-semibold">Sources</h2>
@@ -201,6 +259,9 @@ function NotebookDetail() {
                   </button>
                   <div className="flex shrink-0 items-center gap-1">
                     <Button size="sm" variant="ghost" className="h-8 px-2 text-xs" onClick={() => openNote(n)}>Open</Button>
+                    <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => downloadNote(n)} title="Download">
+                      <Download className="h-3.5 w-3.5" />
+                    </Button>
                     <Button size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => removeNote(n)}>
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
@@ -212,32 +273,36 @@ function NotebookDetail() {
         </section>
       </main>
 
-      {/* Add-source dialog */}
       <AddSourceDialog open={open} onOpenChange={setOpen}
         onPickFiles={() => fileRef.current?.click()}
         onSaveManual={addManual} />
 
-      {/* Viewer */}
       <Dialog open={!!viewing} onOpenChange={() => { setViewing(null); setViewUrl(null); }}>
         <DialogContent className="max-w-4xl rounded-2xl p-0 overflow-hidden">
-          <DialogHeader className="px-6 pt-5 pb-3 border-b">
+          <DialogHeader className="px-6 pt-5 pb-3 border-b flex flex-row items-center justify-between gap-3">
             <DialogTitle className="truncate pr-8">{viewing?.title}</DialogTitle>
+            {viewing && (
+              <Button size="sm" variant="outline" className="shrink-0 gap-1.5 rounded-full" onClick={() => downloadNote(viewing)}>
+                <Download className="h-3.5 w-3.5" /> Download
+              </Button>
+            )}
           </DialogHeader>
           <div className="max-h-[70vh] overflow-auto p-6">
-            {viewing?.content && (
-              <pre className="whitespace-pre-wrap break-words font-sans text-[14px] leading-relaxed text-foreground/90">{viewing.content}</pre>
-            )}
+            {/* Images and PDFs render natively from storage */}
             {viewing?.storage_path && viewing.kind === "image" && viewUrl && (
               <img src={viewUrl} alt={viewing.title} className="mx-auto max-h-[60vh] rounded-xl" />
             )}
             {viewing?.storage_path && viewing.kind === "pdf" && viewUrl && (
               <iframe src={viewUrl} className="h-[65vh] w-full rounded-xl border" title={viewing.title} />
             )}
-            {viewing?.storage_path && !["image", "pdf"].includes(viewing.kind) && (
-              <div className="text-center text-sm text-muted-foreground">
-                {viewUrl
-                  ? <a href={viewUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-full bg-foreground px-5 py-2.5 text-background"><ExternalLink className="h-4 w-4" /> Download / open</a>
-                  : "Preparing preview…"}
+            {/* Text-extracted content (docx, xlsx, pptx, csv, md, txt, or manual notes) */}
+            {viewing && viewing.kind !== "image" && viewing.kind !== "pdf" && viewing.content && (
+              <pre className="whitespace-pre-wrap break-words font-sans text-[14px] leading-relaxed text-foreground/90">{viewing.content}</pre>
+            )}
+            {/* Fallback: binary file with no extracted text */}
+            {viewing && viewing.storage_path && viewing.kind !== "image" && viewing.kind !== "pdf" && !viewing.content && (
+              <div className="rounded-2xl border border-dashed border-border bg-secondary/40 p-8 text-center text-sm text-muted-foreground">
+                Preview not available for this format. Use the Download button above to open it locally.
               </div>
             )}
           </div>
@@ -247,7 +312,7 @@ function NotebookDetail() {
   );
 }
 
-function DropZone({ onFiles, onClickUpload }: { onFiles: (f: File[]) => void; onClickUpload: () => void }) {
+function DropZone({ onFiles, onClickUpload, onWrite }: { onFiles: (f: File[]) => void; onClickUpload: () => void; onWrite: () => void }) {
   const [over, setOver] = useState(false);
   return (
     <div
@@ -262,12 +327,13 @@ function DropZone({ onFiles, onClickUpload }: { onFiles: (f: File[]) => void; on
       </div>
       <h3 className="mt-4 text-lg font-semibold">Upload your sources</h3>
       <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
-        Drop PDFs, Word, PowerPoint, Excel, images, or markdown here — or paste text manually.
+        Drop PDFs, Word, PowerPoint, Excel, images, or markdown here — or write a note yourself.
       </p>
       <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
         <Button onClick={onClickUpload} className="gap-2 rounded-full"><Upload className="h-4 w-4" /> Choose files</Button>
+        <Button onClick={onWrite} variant="outline" className="gap-2 rounded-full"><Pencil className="h-4 w-4" /> Write a note</Button>
       </div>
-      <p className="mt-3 text-xs text-muted-foreground">PDF · DOCX · PPTX · XLSX · CSV · MD · TXT · Images</p>
+      <p className="mt-3 text-xs text-muted-foreground">PDF · DOCX · PPTX · XLSX · CSV · MD · TXT · Images · Max {MAX_FILE_MB}MB</p>
     </div>
   );
 }
@@ -282,6 +348,7 @@ function AddSourceDialog({
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const reset = () => { setTitle(""); setBody(""); };
+  const wordCount = useMemo(() => body.trim().split(/\s+/).filter(Boolean).length, [body]);
   return (
     <Dialog open={open} onOpenChange={(b) => { onOpenChange(b); if (!b) reset(); }}>
       <DialogContent className="max-w-xl rounded-2xl">
@@ -297,7 +364,7 @@ function AddSourceDialog({
           </TabsList>
           <TabsContent value="upload" className="mt-4">
             <div className="rounded-2xl border border-dashed border-border bg-secondary/40 p-8 text-center">
-              <p className="text-sm text-muted-foreground">Pick any document, presentation, spreadsheet, or image.</p>
+              <p className="text-sm text-muted-foreground">PDF, Word, PowerPoint, Excel, images, or Markdown. Up to {MAX_FILE_MB}MB.</p>
               <Button className="mt-4 rounded-full" onClick={() => { onOpenChange(false); onPickFiles(); }}>
                 <Upload className="h-4 w-4" /> Choose files
               </Button>
@@ -306,8 +373,12 @@ function AddSourceDialog({
           {(["text", "markdown"] as const).map(k => (
             <TabsContent key={k} value={k} className="mt-4 space-y-3">
               <Input placeholder="Note title" value={title} onChange={e => setTitle(e.target.value)} />
-              <Textarea rows={8} placeholder={k === "markdown" ? "# Heading\n\nWrite markdown here…" : "Type your note…"}
+              <Textarea rows={10} placeholder={k === "markdown" ? "# Heading\n\nWrite markdown here…" : "Start typing your note…"}
                 value={body} onChange={e => setBody(e.target.value)} className="rounded-xl" />
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>{wordCount} word{wordCount === 1 ? "" : "s"}</span>
+                <span>Saved to this notebook · readable by AI</span>
+              </div>
               <DialogFooter>
                 <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
                 <Button onClick={() => onSaveManual(title, body, k)} disabled={!body.trim()}>Save note</Button>
