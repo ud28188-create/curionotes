@@ -105,7 +105,7 @@ function ResetPassword() {
               <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 id="confirm"
-                type="password"
+                type={showConfirm ? "text" : "password"}
                 autoComplete="new-password"
                 required
                 placeholder="Repeat password"
@@ -113,9 +113,13 @@ function ResetPassword() {
                 onChange={(e) => setConfirm(e.target.value)}
                 minLength={8}
                 maxLength={72}
-                className="h-11 rounded-xl pl-9"
+                className="h-11 rounded-xl pl-9 pr-10"
                 disabled={!ready}
               />
+              <button type="button" onClick={() => setShowConfirm((s) => !s)} aria-label={showConfirm ? "Hide password" : "Show password"}
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-muted-foreground hover:bg-secondary hover:text-foreground">
+                {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
             </div>
           </div>
 
