@@ -110,9 +110,9 @@ export function ProfileMenu() {
           </Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
-          <Link to="/pricing" className="cursor-pointer gap-2 rounded-lg">
+          <a href="/#pricing" className="cursor-pointer gap-2 rounded-lg">
             <Crown className="h-4 w-4" /> Upgrade plan
-          </Link>
+          </a>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
           <Link to="/notebooks" className="cursor-pointer gap-2 rounded-lg">
