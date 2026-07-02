@@ -105,21 +105,64 @@ function TrustItem({ label }: { label: string }) {
   );
 }
 
-const SLIDES = [
+type Slide = {
+  icon: React.ReactNode;
+  title: string;
+  body: string;
+  bullets: string[];
+  demo: { question: string; heading: string; text: string; sources: number };
+};
+
+const SLIDES: Slide[] = [
   {
     icon: <FileText className="h-5 w-5 text-emerald-600" />,
     title: "Upload your sources",
     body: "Upload PDFs, images, PowerPoints, Excel files, webpages, and more. CurioNotes will understand them all.",
-    bullets: ["PDF, DOCX, PPTX, XLSX", "Images & Scanned Notes (OCR)", "Web Links & YouTube Videos", "Unlimited Notes & Folders"],
+    bullets: ["PDF, DOCX, PPTX, XLSX", "Images & Scanned Notes (OCR)", "Markdown & Plain Text", "Unlimited Notes & Folders"],
+    demo: { question: "Can you summarize this chapter?", heading: "Summary",
+      text: "This chapter explains the fundamental concepts of machine learning including supervised, unsupervised learning, model training, and evaluation metrics…", sources: 3 },
+  },
+  {
+    icon: <MessageSquare className="h-5 w-5 text-emerald-600" />,
+    title: "Chat with your notes",
+    body: "Ask any question in plain English. CurioNotes cites the exact sources it used so you can trust every answer.",
+    bullets: ["Grounded, cited answers", "Multi-source reasoning", "Follow-up conversations", "Study-partner tone"],
+    demo: { question: "What was the key takeaway from lecture 4?", heading: "Key takeaway",
+      text: "Lecture 4 argued that gradient descent converges reliably only when the learning rate is annealed as loss plateaus…", sources: 2 },
+  },
+  {
+    icon: <Sparkles className="h-5 w-5 text-emerald-600" />,
+    title: "Instant study aids",
+    body: "Generate flashcards, quizzes, and study guides directly from your uploaded material — in seconds.",
+    bullets: ["Auto flashcards", "Quick quizzes", "One-page study guides", "Export & share"],
+    demo: { question: "Make 3 quiz questions from these slides.", heading: "Practice quiz",
+      text: "1. What are the four V's of big data?\n2. Define overfitting in two sentences.\n3. When would you choose PCA over t-SNE?", sources: 4 },
+  },
+  {
+    icon: <Layers className="h-5 w-5 text-emerald-600" />,
+    title: "Organized for revision",
+    body: "Everything you upload is grouped in beautiful, searchable notebooks — perfect for exam season.",
+    bullets: ["Per-course notebooks", "Fast search & filters", "Recently updated first", "Works on any device"],
+    demo: { question: "Which sources cover backpropagation?", heading: "Matching sources",
+      text: "Backpropagation appears in [Deep Learning Chapter 6.pdf], [Lecture-04-slides.pptx], and your handwritten note 'Neural nets basics'.", sources: 3 },
   },
 ];
 
 function FeatureCarousel() {
-  const [idx] = useState(0);
+  const [idx, setIdx] = useState(0);
+  const [paused, setPaused] = useState(false);
+
+  useEffect(() => {
+    if (paused) return;
+    const t = setInterval(() => setIdx((i) => (i + 1) % SLIDES.length), 4500);
+    return () => clearInterval(t);
+  }, [paused]);
+
   const slide = SLIDES[idx];
   return (
     <section id="features" className="px-6 pb-28">
-      <div className="mx-auto max-w-[1180px]">
+      <div className="mx-auto max-w-[1180px]"
+        onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)}>
         <div className="text-center">
           <h2 className="text-[34px] font-bold tracking-[-0.025em] text-foreground md:text-[44px]">
             Your AI-Powered Study Partner
@@ -133,7 +176,7 @@ function FeatureCarousel() {
 
         <div className="mt-14 grid items-start gap-10 md:mt-20 md:grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)] md:gap-16">
           {/* Left */}
-          <div className="md:pt-4">
+          <div key={`left-${idx}`} className="md:pt-4 animate-in fade-in slide-in-from-left-4 duration-500">
             <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 ring-1 ring-emerald-100">
               {slide.icon}
             </div>
@@ -153,20 +196,17 @@ function FeatureCarousel() {
 
           {/* Right preview card */}
           <div className="relative">
-            <div
-              className="relative rounded-[28px] p-6 md:p-8"
+            <div key={`right-${idx}`} className="relative rounded-[28px] p-6 md:p-8 animate-in fade-in slide-in-from-right-4 duration-500"
               style={{
                 background: "linear-gradient(135deg, rgba(16,185,129,0.10), rgba(59,130,246,0.10) 55%, rgba(139,92,246,0.10))",
               }}
             >
-              {/* user bubble */}
               <div className="flex justify-end">
-                <div className="rounded-full border border-emerald-300/70 bg-white px-5 py-2.5 text-[14px] font-medium text-foreground shadow-sm">
-                  Can you summarize this chapter?
+                <div className="max-w-full rounded-full border border-emerald-300/70 bg-white px-5 py-2.5 text-[14px] font-medium text-foreground shadow-sm">
+                  {slide.demo.question}
                 </div>
               </div>
 
-              {/* analyzing */}
               <div className="mt-6 flex items-center gap-2.5 text-[14px] text-muted-foreground">
                 <span className="inline-flex h-6 w-6 items-center justify-center rounded-full" style={{ background: "var(--gradient-brand)" }}>
                   <span className="block h-2 w-2 rounded-full bg-white" />
@@ -174,29 +214,26 @@ function FeatureCarousel() {
                 Analyzing your documents...
               </div>
 
-              {/* summary card */}
               <div className="mt-4 rounded-2xl border border-border/70 bg-white p-5 shadow-[0_8px_30px_-12px_rgba(0,0,0,0.08)]">
-                <div className="text-[15px] font-semibold text-foreground">Summary</div>
-                <p className="mt-2 text-[13.5px] leading-[1.65] text-muted-foreground">
-                  This chapter explains the fundamental concepts of machine learning including supervised learning, unsupervised learning, model training, and evaluation metrics. The key takeaway is understanding how algorithms learn patterns from data and make predictions...
+                <div className="text-[15px] font-semibold text-foreground">{slide.demo.heading}</div>
+                <p className="mt-2 whitespace-pre-wrap text-[13.5px] leading-[1.65] text-muted-foreground">
+                  {slide.demo.text}
                 </p>
                 <button className="mt-4 flex w-full items-center justify-between rounded-xl border border-border/70 px-3.5 py-2.5 text-[13.5px] text-foreground/80 transition-colors hover:bg-secondary">
                   <span className="inline-flex items-center gap-2">
                     <FileText className="h-4 w-4" />
-                    Sources (3)
+                    Sources ({slide.demo.sources})
                   </span>
                   <ChevronDown className="h-4 w-4" />
                 </button>
               </div>
             </div>
 
-            {/* pagination dots */}
+            {/* clickable pagination dots */}
             <div className="mt-6 flex justify-center gap-2">
-              {[0, 1, 2, 3].map((i) => (
-                <span
-                  key={i}
-                  className={`h-1.5 rounded-full transition-all ${i === 0 ? "w-6 bg-emerald-500" : "w-1.5 bg-border"}`}
-                />
+              {SLIDES.map((_, i) => (
+                <button key={i} onClick={() => setIdx(i)} aria-label={`Slide ${i + 1}`}
+                  className={`h-1.5 rounded-full transition-all ${i === idx ? "w-6 bg-emerald-500" : "w-1.5 bg-border hover:bg-muted-foreground/40"}`} />
               ))}
             </div>
           </div>
@@ -205,6 +242,7 @@ function FeatureCarousel() {
     </section>
   );
 }
+
 
 function Landing() {
   return (
