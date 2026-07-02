@@ -159,6 +159,26 @@ function NotebookDetail() {
     if (n.storage_path) {
       const { data } = await supabase.storage.from("notes").createSignedUrl(n.storage_path, 60 * 30);
       setViewUrl(data?.signedUrl ?? null);
+
+      // If no extracted content yet for a text-y kind, extract on the fly so the reader
+      // shows the actual document text instead of just a download button.
+      const needsExtract = !n.content && ["word", "excel", "powerpoint", "text", "markdown"].includes(n.kind);
+      if (needsExtract) {
+        try {
+          const { data: blob } = await supabase.storage.from("notes").download(n.storage_path);
+          if (blob) {
+            const buf = await blob.arrayBuffer();
+            const extracted = await extractTextFromFile(buf, n.kind);
+            if (extracted && extracted.trim()) {
+              await supabase.from("notes").update({ content: extracted }).eq("id", n.id);
+              setViewing((cur) => (cur && cur.id === n.id ? { ...cur, content: extracted } : cur));
+              setNotes((list) => list?.map((x) => x.id === n.id ? { ...x, content: extracted } : x) ?? list);
+            }
+          }
+        } catch (e) {
+          console.warn("re-extract failed", e);
+        }
+      }
     }
   }
 
