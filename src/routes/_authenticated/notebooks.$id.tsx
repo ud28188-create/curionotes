@@ -18,6 +18,7 @@ import {
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { AiChat } from "@/components/AiChat";
 import { extractTextFromFile } from "@/lib/file-extract";
+import { ProfileMenu } from "@/components/ProfileMenu";
 
 export const Route = createFileRoute("/_authenticated/notebooks/$id")({
   component: NotebookDetail,
