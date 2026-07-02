@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Check, Play, FileText, ChevronDown, Github, Twitter } from "lucide-react";
-import { useState } from "react";
+import { Check, Play, FileText, ChevronDown, Github, Twitter, Sparkles, MessageSquare, Layers } from "lucide-react";
+import { useEffect, useState } from "react";
 import { Footer } from "@/components/Footer";
 import { Features } from "@/components/Features";
 import { Pricing } from "@/components/Pricing";
