@@ -3,6 +3,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { generateText } from "ai";
 import { z } from "zod";
 import { createLovableAiGatewayProvider } from "./ai-gateway.server";
+import { extractTextFromFile } from "./file-extract";
 
 const AskInput = z.object({
   notebookId: z.string().uuid(),
@@ -31,7 +32,6 @@ export const askNotes = createServerFn({ method: "POST" })
 
     const { supabase, userId } = context;
 
-    // Fetch selected notes scoped to this user + notebook
     const { data: notes, error } = await supabase
       .from("notes")
       .select("id,title,kind,content,storage_path,mime_type")
@@ -42,7 +42,6 @@ export const askNotes = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     if (!notes || notes.length === 0) throw new Error("No accessible notes selected");
 
-    // Build grounded context. For text/markdown, inline. For binary, include title only.
     let total = 0;
     const sections: string[] = [];
     const multimodalParts: Array<
@@ -53,36 +52,51 @@ export const askNotes = createServerFn({ method: "POST" })
 
     for (const n of notes) {
       let body = "";
-      // Prefer inlined text content (extracted client-side for docx/xlsx/pptx/csv/md/txt)
+      // Prefer inlined text content (already extracted client-side for most formats)
       if (n.content && n.content.trim().length > 0) {
         body = n.content.slice(0, MAX_CHARS_PER_NOTE);
-      } else if (n.storage_path && (n.kind === "image" || n.kind === "pdf")) {
-        // Attach PDFs & images as multimodal parts
+      } else if (n.storage_path) {
+        // Download and handle by kind
         const { data: blob, error: dErr } = await supabase.storage
           .from("notes")
           .download(n.storage_path);
         if (!dErr && blob) {
-          const buf = new Uint8Array(await blob.arrayBuffer());
-          let bin = "";
-          for (let i = 0; i < buf.length; i++) bin += String.fromCharCode(buf[i]);
-          const b64 = btoa(bin);
           if (n.kind === "image") {
+            const buf = new Uint8Array(await blob.arrayBuffer());
+            let bin = "";
+            for (let i = 0; i < buf.length; i++) bin += String.fromCharCode(buf[i]);
+            const b64 = btoa(bin);
             multimodalParts.push({
               type: "image",
               image: `data:${n.mime_type || "image/png"};base64,${b64}`,
             });
             body = `[Image attached: ${n.title}]`;
-          } else {
+          } else if (n.kind === "pdf") {
+            const buf = new Uint8Array(await blob.arrayBuffer());
+            let bin = "";
+            for (let i = 0; i < buf.length; i++) bin += String.fromCharCode(buf[i]);
+            const b64 = btoa(bin);
             multimodalParts.push({
               type: "file",
               data: `data:application/pdf;base64,${b64}`,
               mediaType: "application/pdf",
             });
             body = `[PDF attached: ${n.title}]`;
+          } else {
+            // Server-side extract for word/excel/powerpoint/text/markdown
+            const buffer = await blob.arrayBuffer();
+            const extracted = await extractTextFromFile(buffer, n.kind);
+            if (extracted && extracted.trim()) {
+              body = extracted.slice(0, MAX_CHARS_PER_NOTE);
+              // Persist for next time
+              await supabase.from("notes").update({ content: extracted }).eq("id", n.id);
+            } else {
+              body = `[${n.kind.toUpperCase()} file "${n.title}" — no extractable text.]`;
+            }
           }
         }
       } else {
-        body = `[${n.kind.toUpperCase()} file "${n.title}" — no extractable text found. Ask the user to re-upload or paste key passages.]`;
+        body = `[${n.kind.toUpperCase()} "${n.title}" — no content available.]`;
       }
 
       const section = `### Source: ${n.title} (${n.kind})\n${body}`;

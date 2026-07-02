@@ -131,7 +131,7 @@ function AuthPage() {
 
       if (mode === "signup") {
         const name = displayName.trim().slice(0, 100);
-        const { error } = await supabase.auth.signUp({
+        const { data: signUpData, error } = await supabase.auth.signUp({
           email: parsedEmail,
           password: parsedPassword,
           options: {
@@ -140,6 +140,12 @@ function AuthPage() {
           },
         });
         if (error) throw error;
+        // Supabase returns a user with an empty identities array when the email is already registered.
+        if (signUpData.user && Array.isArray(signUpData.user.identities) && signUpData.user.identities.length === 0) {
+          toast.error("An account with this email already exists. Try signing in.");
+          setMode("signin");
+          return;
+        }
         toast.success("Account created. We sent a 6-digit code to your email.");
         setMode("verify-signup");
         setOtp("");
