@@ -1,6 +1,5 @@
-// Client-side text extraction for common document types.
-// Returned text is stored in notes.content so the AI can read every source
-// without relying on multimodal attachments for non-PDF/image files.
+// Client + server text extraction for common document types.
+// Works with either a File (browser) or an ArrayBuffer (server).
 
 const MAX_EXTRACT_CHARS = 200_000;
 
@@ -8,14 +7,27 @@ function clamp(s: string) {
   return s.length > MAX_EXTRACT_CHARS ? s.slice(0, MAX_EXTRACT_CHARS) + "\n\n[…truncated]" : s;
 }
 
-export async function extractTextFromFile(file: File, kind: string): Promise<string | null> {
+async function toBuffer(input: File | ArrayBuffer): Promise<ArrayBuffer> {
+  if (input instanceof ArrayBuffer) return input;
+  return await input.arrayBuffer();
+}
+
+async function toText(input: File | ArrayBuffer): Promise<string> {
+  if (input instanceof ArrayBuffer) return new TextDecoder().decode(new Uint8Array(input));
+  return await input.text();
+}
+
+export async function extractTextFromFile(
+  input: File | ArrayBuffer,
+  kind: string,
+): Promise<string | null> {
   try {
     if (kind === "text" || kind === "markdown") {
-      return clamp(await file.text());
+      return clamp(await toText(input));
     }
     if (kind === "excel") {
       const XLSX = await import("xlsx");
-      const buf = await file.arrayBuffer();
+      const buf = await toBuffer(input);
       const wb = XLSX.read(buf, { type: "array" });
       const out: string[] = [];
       for (const name of wb.SheetNames) {
@@ -26,13 +38,13 @@ export async function extractTextFromFile(file: File, kind: string): Promise<str
     }
     if (kind === "word") {
       const mammoth = await import("mammoth");
-      const buf = await file.arrayBuffer();
+      const buf = await toBuffer(input);
       const { value } = await mammoth.extractRawText({ arrayBuffer: buf });
       return clamp(value || "");
     }
     if (kind === "powerpoint") {
       const JSZip = (await import("jszip")).default;
-      const buf = await file.arrayBuffer();
+      const buf = await toBuffer(input);
       const zip = await JSZip.loadAsync(buf);
       const slideFiles = Object.keys(zip.files)
         .filter((f) => /^ppt\/slides\/slide\d+\.xml$/.test(f))
