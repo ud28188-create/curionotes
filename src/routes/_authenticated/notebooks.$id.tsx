@@ -205,9 +205,12 @@ function NotebookDetail() {
             <ArrowLeft className="h-4 w-4" />
           </Link>
           <h1 className="truncate text-base font-semibold sm:text-lg">{nbTitle || "…"}</h1>
-          <Button onClick={() => setOpen(true)} className="gap-2 rounded-full">
-            <Plus className="h-4 w-4" /><span className="hidden sm:inline">Add source</span>
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button onClick={() => setOpen(true)} size="sm" className="gap-2 rounded-full">
+              <Plus className="h-4 w-4" /><span className="hidden sm:inline">Add source</span>
+            </Button>
+            <ProfileMenu />
+          </div>
         </div>
       </header>
 
