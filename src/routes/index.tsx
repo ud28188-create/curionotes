@@ -272,7 +272,8 @@ function Landing() {
         <FeatureCarousel />
         <Features />
         <Pricing />
-      </main>
+        <Faq />
+
       <Footer />
     </div>
   );
