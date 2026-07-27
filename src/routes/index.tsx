@@ -4,6 +4,9 @@ import { useEffect, useState } from "react";
 import { Footer } from "@/components/Footer";
 import { Features } from "@/components/Features";
 import { Pricing } from "@/components/Pricing";
+import { Faq } from "@/components/Faq";
+import { ResearchPartner } from "@/components/ResearchPartner";
+
 import { ProfileMenu } from "@/components/ProfileMenu";
 import { useSession } from "@/hooks/use-session";
 
