@@ -376,10 +376,10 @@ function AddSourceDialog({
   return (
     <Dialog open={open} onOpenChange={(b) => { onOpenChange(b); if (!b) reset(); }}>
       <DialogContent className="max-w-xl rounded-2xl">
-        <DialogHeader className="flex flex-row items-center justify-between">
+        <DialogHeader>
           <DialogTitle>Add a source</DialogTitle>
-          <button onClick={() => onOpenChange(false)} className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
         </DialogHeader>
+
         <Tabs defaultValue="upload" className="mt-2">
           <TabsList className="w-full">
             <TabsTrigger value="upload" className="flex-1">Upload file</TabsTrigger>
