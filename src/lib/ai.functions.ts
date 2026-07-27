@@ -128,6 +128,8 @@ export const askNotes = createServerFn({ method: "POST" })
         model,
         system,
         messages: messages as never,
+        // Skip extended thinking for much faster answers.
+        providerOptions: { lovable: { reasoning: { enabled: false } } },
       });
       return { answer: result.text };
     } catch (e) {
