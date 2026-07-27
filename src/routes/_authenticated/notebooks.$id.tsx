@@ -37,6 +37,24 @@ const KIND_ICON: Record<string, React.ElementType> = {
   image: FileImage, markdown: FileCode, text: FileText, link: ExternalLink,
 };
 
+const KIND_ACCENT: Record<string, string> = {
+  pdf: "from-rose-500 to-orange-500",
+  word: "from-blue-500 to-indigo-500",
+  powerpoint: "from-orange-500 to-amber-500",
+  excel: "from-emerald-500 to-teal-500",
+  image: "from-fuchsia-500 to-purple-500",
+  markdown: "from-slate-600 to-slate-800",
+  text: "from-emerald-500 to-blue-500",
+  link: "from-cyan-500 to-blue-500",
+};
+
+function formatBytes(b: number) {
+  if (b < 1024) return `${b} B`;
+  if (b < 1024 * 1024) return `${Math.round(b / 1024)} KB`;
+  return `${(b / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+
 // Client-side upload validation
 const MAX_FILE_MB = 25;
 const MAX_FILE_BYTES = MAX_FILE_MB * 1024 * 1024;
