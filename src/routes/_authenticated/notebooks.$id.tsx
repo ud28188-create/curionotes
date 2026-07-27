@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   ArrowLeft, Upload, FileText, FileImage, FileSpreadsheet, Presentation,
-  FileType, FileCode, Notebook as NotebookIcon, Plus, Trash2, X, ExternalLink,
+  FileType, FileCode, Notebook as NotebookIcon, Plus, Trash2, ExternalLink,
   Download, Pencil,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
