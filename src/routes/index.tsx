@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { Footer } from "@/components/Footer";
 import { Features } from "@/components/Features";
 import { Pricing } from "@/components/Pricing";
+import { ProfileMenu } from "@/components/ProfileMenu";
+import { useSession } from "@/hooks/use-session";
 
 export const Route = createFileRoute("/")({
   component: Landing,
@@ -32,6 +34,7 @@ function Logo() {
 }
 
 function Nav() {
+  const { session, loading } = useSession();
   return (
     <header className="sticky top-0 z-40 w-full border-b border-border/60 bg-background/80 backdrop-blur-xl">
       <div className="mx-auto flex h-[72px] max-w-[1280px] items-center justify-between px-6">
@@ -54,9 +57,24 @@ function Nav() {
           <a href="#" aria-label="Twitter" className="hidden text-muted-foreground transition-colors hover:text-foreground sm:block">
             <Twitter className="h-[18px] w-[18px]" />
           </a>
-          <Link to="/auth" className="inline-flex h-10 items-center rounded-full bg-foreground px-5 text-[14px] font-semibold text-background transition-transform hover:scale-[1.02]">
-            Get Started
-          </Link>
+          {loading ? (
+            <span className="h-10 w-[112px] animate-pulse rounded-full bg-secondary" />
+          ) : session ? (
+            <div className="flex items-center gap-3">
+              <Link
+                to="/notebooks"
+                preload="intent"
+                className="hidden h-10 items-center rounded-full bg-foreground px-5 text-[14px] font-semibold text-background transition-transform hover:scale-[1.02] sm:inline-flex"
+              >
+                My notebooks
+              </Link>
+              <ProfileMenu />
+            </div>
+          ) : (
+            <Link to="/auth" preload="intent" className="inline-flex h-10 items-center rounded-full bg-foreground px-5 text-[14px] font-semibold text-background transition-transform hover:scale-[1.02]">
+              Get Started
+            </Link>
+          )}
         </div>
       </div>
     </header>
@@ -64,6 +82,7 @@ function Nav() {
 }
 
 function Hero() {
+  const { session } = useSession();
   return (
     <section className="relative px-6 pt-24 pb-20 md:pt-32 md:pb-28">
       <div className="mx-auto max-w-[1100px] text-center">
@@ -77,8 +96,8 @@ function Hero() {
         </p>
 
         <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row sm:gap-4">
-          <Link to="/auth" className="inline-flex h-[52px] items-center justify-center rounded-full bg-foreground px-8 text-[15px] font-semibold text-background shadow-[0_8px_24px_-8px_rgba(0,0,0,0.4)] transition-transform hover:scale-[1.02]">
-            Get Started Free
+          <Link to={session ? "/notebooks" : "/auth"} preload="intent" className="inline-flex h-[52px] items-center justify-center rounded-full bg-foreground px-8 text-[15px] font-semibold text-background shadow-[0_8px_24px_-8px_rgba(0,0,0,0.4)] transition-transform hover:scale-[1.02]">
+            {session ? "Open my notebooks" : "Get Started Free"}
           </Link>
           <a href="#demo" className="inline-flex h-[52px] items-center justify-center gap-2 rounded-full border border-border bg-background px-7 text-[15px] font-semibold text-foreground transition-colors hover:bg-secondary">
             <Play className="h-4 w-4 fill-current" />

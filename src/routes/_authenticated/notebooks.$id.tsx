@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   ArrowLeft, Upload, FileText, FileImage, FileSpreadsheet, Presentation,
-  FileType, FileCode, Notebook as NotebookIcon, Plus, Trash2, X, ExternalLink,
+  FileType, FileCode, Notebook as NotebookIcon, Plus, Trash2, ExternalLink,
   Download, Pencil,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -36,6 +36,24 @@ const KIND_ICON: Record<string, React.ElementType> = {
   pdf: FileText, word: FileType, powerpoint: Presentation, excel: FileSpreadsheet,
   image: FileImage, markdown: FileCode, text: FileText, link: ExternalLink,
 };
+
+const KIND_ACCENT: Record<string, string> = {
+  pdf: "from-rose-500 to-orange-500",
+  word: "from-blue-500 to-indigo-500",
+  powerpoint: "from-orange-500 to-amber-500",
+  excel: "from-emerald-500 to-teal-500",
+  image: "from-fuchsia-500 to-purple-500",
+  markdown: "from-slate-600 to-slate-800",
+  text: "from-emerald-500 to-blue-500",
+  link: "from-cyan-500 to-blue-500",
+};
+
+function formatBytes(b: number) {
+  if (b < 1024) return `${b} B`;
+  if (b < 1024 * 1024) return `${Math.round(b / 1024)} KB`;
+  return `${(b / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 
 // Client-side upload validation
 const MAX_FILE_MB = 25;
@@ -252,15 +270,20 @@ function NotebookDetail() {
         </section>
 
         <section className="mt-10">
-          <div className="flex items-baseline justify-between">
-            <h2 className="text-lg font-semibold">Sources</h2>
-            <span className="text-xs text-muted-foreground">{notes?.length ?? 0} item{(notes?.length ?? 0) === 1 ? "" : "s"}</span>
+          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-3">
+            <div className="min-w-0">
+              <h2 className="text-lg font-semibold tracking-[-0.01em]">Sources</h2>
+              <p className="mt-0.5 truncate text-xs text-muted-foreground">Everything the AI can read in this notebook.</p>
+            </div>
+            <span className="shrink-0 rounded-full bg-secondary px-3 py-1 text-xs font-medium text-muted-foreground">
+              {notes?.length ?? 0} item{(notes?.length ?? 0) === 1 ? "" : "s"}
+            </span>
           </div>
 
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {notes === null && Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-2xl" />)}
+          <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {notes === null && Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-40 rounded-[20px]" />)}
             {notes !== null && notes.length === 0 && (
-              <div className="col-span-full rounded-2xl border border-dashed border-border bg-card p-10 text-center">
+              <div className="col-span-full rounded-[20px] border border-dashed border-border bg-card p-10 text-center">
                 <div className="mx-auto inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 ring-1 ring-emerald-100">
                   <NotebookIcon className="h-5 w-5 text-emerald-600" />
                 </div>
@@ -270,30 +293,61 @@ function NotebookDetail() {
             )}
             {notes?.map(n => {
               const Icon = KIND_ICON[n.kind] ?? FileText;
+              const accent = KIND_ACCENT[n.kind] ?? "from-slate-400 to-slate-500";
+              const preview = (n.content ?? "").replace(/\s+/g, " ").trim().slice(0, 140);
               return (
-                <div key={n.id} className="group grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-2xl border border-border/70 bg-card p-4 transition hover:shadow-[0_12px_32px_-16px_rgba(0,0,0,0.18)]">
-                  <div className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-secondary">
-                    <Icon className="h-5 w-5 text-foreground/80" />
-                  </div>
-                  <button onClick={() => openNote(n)} className="min-w-0 text-left">
-                    <div className="truncate text-sm font-semibold">{n.title}</div>
-                    <div className="mt-0.5 truncate text-xs uppercase tracking-wide text-muted-foreground">
-                      {n.kind} · {new Date(n.created_at).toLocaleDateString()}
+                <article
+                  key={n.id}
+                  className="group relative flex min-w-0 flex-col overflow-hidden rounded-[20px] border border-border/70 bg-card transition-all duration-300 hover:-translate-y-0.5 hover:border-emerald-200 hover:shadow-[0_18px_44px_-22px_rgba(16,185,129,0.5)]"
+                >
+                  <span aria-hidden className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${accent}`} />
+                  <button onClick={() => openNote(n)} className="min-w-0 flex-1 p-5 pt-6 text-left">
+                    <div className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-3">
+                      <div className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${accent} text-white shadow-sm`}>
+                        <Icon className="h-5 w-5" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="truncate text-[14.5px] font-semibold leading-snug">{n.title}</div>
+                        <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[10.5px] font-semibold uppercase tracking-wider text-muted-foreground">
+                          <span className="rounded-full bg-secondary px-2 py-0.5">{n.kind}</span>
+                          {n.size_bytes ? <span>{formatBytes(n.size_bytes)}</span> : null}
+                          <span
+                            className={`rounded-full px-2 py-0.5 ${
+                              n.status === "ready"
+                                ? "bg-emerald-50 text-emerald-700"
+                                : n.status === "failed"
+                                  ? "bg-destructive/10 text-destructive"
+                                  : "bg-amber-50 text-amber-700"
+                            }`}
+                          >
+                            {n.status}
+                          </span>
+                        </div>
+                      </div>
                     </div>
+                    <p className="mt-3 line-clamp-2 min-h-[2.4em] text-[12.5px] leading-relaxed text-muted-foreground">
+                      {preview || "Open to preview this source."}
+                    </p>
                   </button>
-                  <div className="flex shrink-0 items-center gap-1">
-                    <Button size="sm" variant="ghost" className="h-8 px-2 text-xs" onClick={() => openNote(n)}>Open</Button>
-                    <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => downloadNote(n)} title="Download">
-                      <Download className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => removeNote(n)}>
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
+                  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-t border-border/60 bg-secondary/30 px-4 py-2.5">
+                    <span className="truncate text-[11px] text-muted-foreground">
+                      {new Date(n.created_at).toLocaleDateString()}
+                    </span>
+                    <div className="flex shrink-0 items-center gap-1">
+                      <Button size="sm" variant="ghost" className="h-8 rounded-full px-3 text-xs" onClick={() => openNote(n)}>Open</Button>
+                      <Button size="icon" variant="ghost" className="h-8 w-8 rounded-full" onClick={() => downloadNote(n)} title="Download">
+                        <Download className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button size="icon" variant="ghost" className="h-8 w-8 rounded-full text-muted-foreground hover:text-destructive" onClick={() => removeNote(n)} title="Delete">
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
                   </div>
-                </div>
+                </article>
               );
             })}
           </div>
+
         </section>
       </main>
 
@@ -376,10 +430,10 @@ function AddSourceDialog({
   return (
     <Dialog open={open} onOpenChange={(b) => { onOpenChange(b); if (!b) reset(); }}>
       <DialogContent className="max-w-xl rounded-2xl">
-        <DialogHeader className="flex flex-row items-center justify-between">
+        <DialogHeader>
           <DialogTitle>Add a source</DialogTitle>
-          <button onClick={() => onOpenChange(false)} className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
         </DialogHeader>
+
         <Tabs defaultValue="upload" className="mt-2">
           <TabsList className="w-full">
             <TabsTrigger value="upload" className="flex-1">Upload file</TabsTrigger>
