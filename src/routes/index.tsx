@@ -270,9 +270,12 @@ function Landing() {
       <main id="overview">
         <Hero />
         <FeatureCarousel />
+        <ResearchPartner />
         <Features />
         <Pricing />
         <Faq />
+      </main>
+
 
       <Footer />
     </div>
