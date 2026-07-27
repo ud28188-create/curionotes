@@ -357,14 +357,15 @@ function NotebookDetail() {
 
       <Dialog open={!!viewing} onOpenChange={() => { setViewing(null); setViewUrl(null); }}>
         <DialogContent className="max-w-4xl rounded-2xl p-0 overflow-hidden">
-          <DialogHeader className="px-6 pt-5 pb-3 border-b flex flex-row items-center justify-between gap-3">
-            <DialogTitle className="truncate pr-8">{viewing?.title}</DialogTitle>
+          <DialogHeader className="flex flex-row items-center justify-between gap-3 border-b px-6 py-4 pr-14">
+            <DialogTitle className="min-w-0 truncate text-base">{viewing?.title}</DialogTitle>
             {viewing && (
-              <Button size="sm" variant="outline" className="shrink-0 gap-1.5 rounded-full" onClick={() => downloadNote(viewing)}>
+              <Button size="sm" variant="outline" className="h-8 shrink-0 gap-1.5 rounded-full" onClick={() => downloadNote(viewing)}>
                 <Download className="h-3.5 w-3.5" /> Download
               </Button>
             )}
           </DialogHeader>
+
           <div className="max-h-[70vh] overflow-auto p-6">
             {/* Images and PDFs render natively from storage */}
             {viewing?.storage_path && viewing.kind === "image" && viewUrl && (
