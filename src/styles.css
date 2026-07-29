@@ -80,8 +80,30 @@
 }
 
 @utility text-gradient-brand {
-  background: var(--gradient-brand);
+  background: linear-gradient(
+    90deg,
+    oklch(0.7 0.19 150),
+    oklch(0.75 0.14 180),
+    oklch(0.62 0.18 250),
+    oklch(0.55 0.2 285),
+    oklch(0.62 0.18 250),
+    oklch(0.75 0.14 180),
+    oklch(0.7 0.19 150)
+  );
+  background-size: 300% 100%;
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
+  animation: brand-neon-flow 6s linear infinite;
+  filter: drop-shadow(0 0 18px color-mix(in oklab, var(--brand-mint) 35%, transparent));
 }
+
+@keyframes brand-neon-flow {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 300% 50%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .text-gradient-brand { animation: none; }
+}
+
