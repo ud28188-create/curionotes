@@ -1,4 +1,5 @@
 import { Link } from "@tanstack/react-router";
+import curioLogo from "@/assets/curionotes-logo.png.asset.json";
 import { Github, Twitter } from "lucide-react";
 
 export function Footer() {
@@ -9,17 +10,7 @@ export function Footer() {
           <div className="md:col-span-2">
             <div className="flex items-center gap-2.5">
               <div className="h-8 w-8">
-                <svg viewBox="0 0 40 40" className="h-full w-full">
-                  <defs>
-                    <linearGradient id="footerLogo" x1="0" y1="0" x2="1" y2="1">
-                      <stop offset="0%" stopColor="#10b981" />
-                      <stop offset="50%" stopColor="#14b8a6" />
-                      <stop offset="100%" stopColor="#3b82f6" />
-                    </linearGradient>
-                  </defs>
-                  <circle cx="20" cy="20" r="18" fill="url(#footerLogo)" />
-                  <path d="M26 14a8 8 0 1 0 0 12" stroke="white" strokeWidth="3.2" strokeLinecap="round" fill="none" />
-                </svg>
+                <img src={curioLogo.url} alt="CurioNotes logo" className="h-full w-full object-contain" />
               </div>
               <span className="text-lg font-bold tracking-tight">CurioNotes</span>
             </div>
