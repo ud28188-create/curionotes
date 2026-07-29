@@ -1,4 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import curioLogo from "@/assets/curionotes-logo.png.asset.json";
 import { useEffect, useState } from "react";
 import { z } from "zod";
 import { toast } from "sonner";
@@ -180,17 +181,7 @@ function AuthPage() {
         <div className="mx-auto flex w-full max-w-[440px] flex-1 flex-col justify-center py-12">
           <div className="mb-8 text-center">
             <div className="mx-auto mb-6 h-12 w-12">
-              <svg viewBox="0 0 40 40" className="h-full w-full">
-                <defs>
-                  <linearGradient id="authLogoGrad" x1="0" y1="0" x2="1" y2="1">
-                    <stop offset="0%" stopColor="#10b981" />
-                    <stop offset="50%" stopColor="#14b8a6" />
-                    <stop offset="100%" stopColor="#3b82f6" />
-                  </linearGradient>
-                </defs>
-                <circle cx="20" cy="20" r="18" fill="url(#authLogoGrad)" />
-                <path d="M26 14a8 8 0 1 0 0 12" stroke="white" strokeWidth="3.2" strokeLinecap="round" fill="none" />
-              </svg>
+              <img src={curioLogo.url} alt="CurioNotes logo" className="h-full w-full object-contain" />
             </div>
             <h1 className="text-[28px] font-bold tracking-tight text-foreground">{title}</h1>
             <p className="mt-2 text-[15px] text-muted-foreground">{subtitle}</p>
