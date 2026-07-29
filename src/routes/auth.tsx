@@ -197,7 +197,7 @@ function AuthPage() {
           </div>
 
           <div className="rounded-3xl border border-border/70 bg-card p-7 shadow-[0_8px_30px_-12px_rgba(0,0,0,0.08)]">
-            {!isVerifying && mode !== "forgot" && (
+            {mode !== "forgot" && (
               <>
                 <Button
                   type="button"
@@ -217,7 +217,7 @@ function AuthPage() {
               </>
             )}
 
-            {!isVerifying && (
+            {(
               <form onSubmit={handleEmailSubmit} className="space-y-4">
                 {mode === "signup" && (
                   <div className="space-y-1.5">
@@ -260,62 +260,13 @@ function AuthPage() {
                   {loading ? <Loader2 className="h-4 w-4 animate-spin" />
                     : mode === "signin" ? "Sign in"
                     : mode === "signup" ? "Create account"
-                    : "Send reset code"}
+                    : "Send reset link"}
                 </Button>
               </form>
             )}
 
-            {isVerifying && (
-              <form onSubmit={handleVerifyOtp} className="space-y-5">
-                <div className="space-y-2">
-                  <Label className="text-[13px]">6-digit code</Label>
-                  <div className="flex justify-center">
-                    <InputOTP maxLength={6} value={otp} onChange={setOtp}>
-                      <InputOTPGroup>
-                        {[0,1,2,3,4,5].map((i) => (
-                          <InputOTPSlot key={i} index={i} className="h-12 w-12 text-lg" />
-                        ))}
-                      </InputOTPGroup>
-                    </InputOTP>
-                  </div>
-                  <div className="flex items-center justify-between text-[12.5px] text-muted-foreground">
-                    <span>Code expires in 10 minutes.</span>
-                    <button type="button" onClick={handleResend} disabled={cooldown > 0}
-                      className="font-medium text-foreground disabled:text-muted-foreground disabled:no-underline hover:underline">
-                      {cooldown > 0 ? `Resend in ${cooldown}s` : "Resend code"}
-                    </button>
-                  </div>
-                </div>
+            {(
 
-                {mode === "verify-reset" && (
-                  <div className="space-y-3 border-t border-border pt-4">
-                    <div className="space-y-1.5">
-                      <Label className="text-[13px]">New password</Label>
-                      <PasswordField id="newpw" value={newPassword} onChange={setNewPassword}
-                        autoComplete="new-password" placeholder="At least 8 characters" />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-[13px]">Confirm new password</Label>
-                      <PasswordField id="confirmpw" value={confirmPassword} onChange={setConfirmPassword}
-                        autoComplete="new-password" placeholder="Repeat password" />
-                    </div>
-                  </div>
-                )}
-
-                <Button type="submit" disabled={loading || otp.length !== 6 || (mode === "verify-reset" && !newPassword)}
-                  className="h-11 w-full rounded-xl bg-foreground text-[14.5px] font-semibold text-background hover:bg-foreground/90">
-                  {loading ? <Loader2 className="h-4 w-4 animate-spin" />
-                    : mode === "verify-signup" ? "Verify & continue" : "Update password"}
-                </Button>
-
-                <button type="button" onClick={() => { setMode("signin"); setOtp(""); }}
-                  className="block w-full text-center text-[13px] text-muted-foreground hover:text-foreground">
-                  Back to sign in
-                </button>
-              </form>
-            )}
-
-            {!isVerifying && (
               <div className="mt-6 text-center text-[13.5px] text-muted-foreground">
                 {mode === "signin" && (
                   <>New to CurioNotes?{" "}
