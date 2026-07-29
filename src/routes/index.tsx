@@ -5,7 +5,7 @@ import { Footer } from "@/components/Footer";
 import { Features } from "@/components/Features";
 import { Pricing } from "@/components/Pricing";
 import { Faq } from "@/components/Faq";
-import { ResearchPartner } from "@/components/ResearchPartner";
+
 
 import { ProfileMenu } from "@/components/ProfileMenu";
 import { useSession } from "@/hooks/use-session";
@@ -102,10 +102,10 @@ function Hero() {
           <Link to={session ? "/notebooks" : "/auth"} preload="intent" className="inline-flex h-[52px] items-center justify-center rounded-full bg-foreground px-8 text-[15px] font-semibold text-background shadow-[0_8px_24px_-8px_rgba(0,0,0,0.4)] transition-transform hover:scale-[1.02]">
             {session ? "Open my notebooks" : "Get Started Free"}
           </Link>
-          <a href="#demo" className="inline-flex h-[52px] items-center justify-center gap-2 rounded-full border border-border bg-background px-7 text-[15px] font-semibold text-foreground transition-colors hover:bg-secondary">
+          <Link to="/how-it-works" preload="intent" className="inline-flex h-[52px] items-center justify-center gap-2 rounded-full border border-border bg-background px-7 text-[15px] font-semibold text-foreground transition-colors hover:bg-secondary">
             <Play className="h-4 w-4 fill-current" />
             See How It Works
-          </a>
+          </Link>
         </div>
 
         <div className="mt-10 flex flex-wrap items-center justify-center gap-x-8 gap-y-3 text-[14px] text-muted-foreground">
