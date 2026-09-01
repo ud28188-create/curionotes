@@ -121,36 +121,58 @@ function NotebookDetail() {
 
     const { data: u } = await supabase.auth.getUser();
     const uid = u.user!.id;
-    for (const file of files) {
-      const jobId = crypto.randomUUID();
-      const kind = kindFromFile(file);
-      setJobs(j => [...j, { id: jobId, name: file.name, progress: 6 }]);
-      const path = `${uid}/${id}/${jobId}-${file.name}`;
-      const tick = setInterval(() => {
-        setJobs(j => j.map(x => x.id === jobId ? { ...x, progress: Math.min(70, x.progress + 6) } : x));
-      }, 220);
-      const { error: upErr } = await supabase.storage.from("notes").upload(path, file, { upsert: false });
-      clearInterval(tick);
-      if (upErr) {
-        setJobs(j => j.filter(x => x.id !== jobId));
-        toast.error(`${file.name}: ${upErr.message}`);
-        continue;
+
+    type Row = {
+      user_id: string; notebook_id: string; title: string; kind: string;
+      status: string; storage_path: string; mime_type: string | null;
+      size_bytes: number; content: string | null;
+    };
+    const rows: Row[] = [];
+
+    // Upload in parallel with a bounded concurrency so many files finish fast
+    // without saturating the browser's connection pool.
+    const CONCURRENCY = 5;
+    const queue = files.map((file) => ({ file, jobId: crypto.randomUUID() }));
+    setJobs(j => [...j, ...queue.map(q => ({ id: q.jobId, name: q.file.name, progress: 8 }))]);
+
+    let cursor = 0;
+    async function worker() {
+      while (cursor < queue.length) {
+        const { file, jobId } = queue[cursor++];
+        const kind = kindFromFile(file);
+        const path = `${uid}/${id}/${jobId}-${file.name}`;
+        try {
+          setJobs(j => j.map(x => x.id === jobId ? { ...x, progress: 35 } : x));
+          const { error: upErr } = await supabase.storage
+            .from("notes")
+            .upload(path, file, { upsert: false, contentType: file.type || undefined });
+          if (upErr) throw new Error(upErr.message);
+          setJobs(j => j.map(x => x.id === jobId ? { ...x, progress: 80 } : x));
+          // Images need no text extraction; the AI reads them directly.
+          const content = kind === "image" ? null : await extractTextFromFile(file, kind);
+          rows.push({
+            user_id: uid, notebook_id: id, title: file.name, kind,
+            status: "ready", storage_path: path, mime_type: file.type || null,
+            size_bytes: file.size, content,
+          });
+          setJobs(j => j.map(x => x.id === jobId ? { ...x, progress: 100 } : x));
+        } catch (e) {
+          toast.error(`${file.name}: ${e instanceof Error ? e.message : "upload failed"}`);
+        } finally {
+          setJobs(j => j.filter(x => x.id !== jobId));
+        }
       }
-      setJobs(j => j.map(x => x.id === jobId ? { ...x, progress: 82 } : x));
-      // Extract text content client-side so AI can read every format
-      const content = await extractTextFromFile(file, kind);
-      setJobs(j => j.map(x => x.id === jobId ? { ...x, progress: 94 } : x));
-      const { error: insErr } = await supabase.from("notes").insert({
-        user_id: uid, notebook_id: id, title: file.name, kind: kind as never,
-        status: "ready", storage_path: path, mime_type: file.type || null, size_bytes: file.size,
-        content,
-      });
-      setJobs(j => j.filter(x => x.id !== jobId));
+    }
+    await Promise.all(Array.from({ length: Math.min(CONCURRENCY, queue.length) }, worker));
+
+    if (rows.length) {
+      const { error: insErr } = await supabase.from("notes").insert(rows as never);
       if (insErr) toast.error(insErr.message);
+      else toast.success(`${rows.length} source${rows.length === 1 ? "" : "s"} added`);
     }
     await load();
-    toast.success("Sources added");
   }
+
 
   async function addManual(title: string, content: string, kind: "text" | "markdown") {
     if (!content.trim()) { toast.error("Write something first"); return; }
