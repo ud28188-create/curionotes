@@ -58,6 +58,11 @@ export function AiChat({
         },
       });
       setMessages((m) => [...m, { role: "assistant", content: res.answer }]);
+      if (res.skippedMedia > 0) {
+        toast.warning(
+          `${res.skippedMedia} media source${res.skippedMedia === 1 ? "" : "s"} skipped — select up to 8 images/PDFs per question.`,
+        );
+      }
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Something went wrong";
       toast.error(msg);
