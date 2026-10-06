@@ -95,49 +95,73 @@ function AuthPage() {
     e.preventDefault();
     setLoading(true);
     try {
-      const parsedEmail = emailSchema.parse(email);
+      const parsedEmail = emailSchema.parse(email).toLowerCase();
 
       if (mode === "forgot") {
-        const { error } = await supabase.auth.resetPasswordForEmail(parsedEmail, {
-          redirectTo: `${window.location.origin}/reset-password`,
-        });
-        if (error) throw error;
-        toast.success("Password reset link sent. Check your inbox.");
-        setMode("signin");
+        const r = await requestReset({ data: { email: parsedEmail } });
+        if (!r.ok) throw new Error(r.error);
+        toast.success("If an account exists, a 6-digit code was sent to your email.");
+        setCode(""); setPassword(""); setMode("reset");
+        return;
+      }
+
+      if (mode === "verify") {
+        const r = await verifySignup({ data: { email: parsedEmail, code: code.trim(), origin: window.location.origin } });
+        if (!r.ok) throw new Error(r.error);
+        toast.success("Email verified! Please sign in.");
+        setCode(""); setPassword(""); setMode("signin");
         return;
       }
 
       const parsedPassword = passwordSchema.parse(password);
 
+      if (mode === "reset") {
+        const r = await confirmReset({ data: { email: parsedEmail, code: code.trim(), password: parsedPassword } });
+        if (!r.ok) throw new Error(r.error);
+        toast.success("Password updated. Please sign in.");
+        setCode(""); setPassword(""); setMode("signin");
+        return;
+      }
+
       if (mode === "signup") {
         const name = displayName.trim().slice(0, 100);
-        const { data: signUpData, error } = await supabase.auth.signUp({
-          email: parsedEmail,
-          password: parsedPassword,
-          options: {
-            emailRedirectTo: `${window.location.origin}/dashboard`,
-            data: name ? { display_name: name } : undefined,
-          },
-        });
-        if (error) throw error;
-        // Supabase returns a user with an empty identities array when the email is already registered.
-        if (signUpData.user && Array.isArray(signUpData.user.identities) && signUpData.user.identities.length === 0) {
-          toast.error("An account with this email already exists. Try signing in.");
-          setMode("signin");
-          return;
+        const r = await startSignup({ data: { email: parsedEmail, password: parsedPassword, name: name || undefined } });
+        if (!r.ok) {
+          if (r.error.includes("already exists")) setMode("signin");
+          throw new Error(r.error);
         }
-        toast.success("Account created. Check your inbox for the confirmation link.");
+        toast.success("We sent a 6-digit code to your email.");
+        setCode(""); setMode("verify");
       } else {
         const { error } = await supabase.auth.signInWithPassword({
           email: parsedEmail,
           password: parsedPassword,
         });
-        if (error) throw error;
+        if (error) {
+          if (/not confirmed/i.test(error.message)) {
+            await resendOtp({ data: { email: parsedEmail, purpose: "signup" } });
+            toast.info("Please verify your email. We sent you a new code.");
+            setCode(""); setMode("verify");
+            return;
+          }
+          throw error;
+        }
       }
     } catch (err: unknown) {
       toast.error(errMsg(err));
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleResend() {
+    try {
+      const parsedEmail = emailSchema.parse(email).toLowerCase();
+      const r = await resendOtp({ data: { email: parsedEmail, purpose: mode === "reset" ? "reset" : "signup" } });
+      if (!r.ok) throw new Error(r.error);
+      toast.success("A new code was sent.");
+    } catch (err) {
+      toast.error(errMsg(err));
     }
   }
 
