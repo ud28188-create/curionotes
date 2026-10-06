@@ -10,6 +10,7 @@ import { lovable } from "@/integrations/lovable/index";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { startSignup, verifySignup, resendOtp, requestReset, confirmReset } from "@/lib/otp.functions";
 
 
 export const Route = createFileRoute("/auth")({
@@ -22,7 +23,7 @@ const passwordSchema = z
   .min(8, "Password must be at least 8 characters")
   .max(72, "Password is too long");
 
-type Mode = "signin" | "signup" | "forgot";
+type Mode = "signin" | "signup" | "forgot" | "verify" | "reset";
 
 function GoogleIcon() {
   return (
@@ -72,6 +73,7 @@ function AuthPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
+  const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
 
@@ -95,49 +97,73 @@ function AuthPage() {
     e.preventDefault();
     setLoading(true);
     try {
-      const parsedEmail = emailSchema.parse(email);
+      const parsedEmail = emailSchema.parse(email).toLowerCase();
 
       if (mode === "forgot") {
-        const { error } = await supabase.auth.resetPasswordForEmail(parsedEmail, {
-          redirectTo: `${window.location.origin}/reset-password`,
-        });
-        if (error) throw error;
-        toast.success("Password reset link sent. Check your inbox.");
-        setMode("signin");
+        const r = await requestReset({ data: { email: parsedEmail } });
+        if (!r.ok) throw new Error(r.error);
+        toast.success("If an account exists, a 6-digit code was sent to your email.");
+        setCode(""); setPassword(""); setMode("reset");
+        return;
+      }
+
+      if (mode === "verify") {
+        const r = await verifySignup({ data: { email: parsedEmail, code: code.trim(), origin: window.location.origin } });
+        if (!r.ok) throw new Error(r.error);
+        toast.success("Email verified! Please sign in.");
+        setCode(""); setPassword(""); setMode("signin");
         return;
       }
 
       const parsedPassword = passwordSchema.parse(password);
 
+      if (mode === "reset") {
+        const r = await confirmReset({ data: { email: parsedEmail, code: code.trim(), password: parsedPassword } });
+        if (!r.ok) throw new Error(r.error);
+        toast.success("Password updated. Please sign in.");
+        setCode(""); setPassword(""); setMode("signin");
+        return;
+      }
+
       if (mode === "signup") {
         const name = displayName.trim().slice(0, 100);
-        const { data: signUpData, error } = await supabase.auth.signUp({
-          email: parsedEmail,
-          password: parsedPassword,
-          options: {
-            emailRedirectTo: `${window.location.origin}/dashboard`,
-            data: name ? { display_name: name } : undefined,
-          },
-        });
-        if (error) throw error;
-        // Supabase returns a user with an empty identities array when the email is already registered.
-        if (signUpData.user && Array.isArray(signUpData.user.identities) && signUpData.user.identities.length === 0) {
-          toast.error("An account with this email already exists. Try signing in.");
-          setMode("signin");
-          return;
+        const r = await startSignup({ data: { email: parsedEmail, password: parsedPassword, name: name || undefined } });
+        if (!r.ok) {
+          if (r.error.includes("already exists")) setMode("signin");
+          throw new Error(r.error);
         }
-        toast.success("Account created. Check your inbox for the confirmation link.");
+        toast.success("We sent a 6-digit code to your email.");
+        setCode(""); setMode("verify");
       } else {
         const { error } = await supabase.auth.signInWithPassword({
           email: parsedEmail,
           password: parsedPassword,
         });
-        if (error) throw error;
+        if (error) {
+          if (/not confirmed/i.test(error.message)) {
+            await resendOtp({ data: { email: parsedEmail, purpose: "signup" } });
+            toast.info("Please verify your email. We sent you a new code.");
+            setCode(""); setMode("verify");
+            return;
+          }
+          throw error;
+        }
       }
     } catch (err: unknown) {
       toast.error(errMsg(err));
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleResend() {
+    try {
+      const parsedEmail = emailSchema.parse(email).toLowerCase();
+      const r = await resendOtp({ data: { email: parsedEmail, purpose: mode === "reset" ? "reset" : "signup" } });
+      if (!r.ok) throw new Error(r.error);
+      toast.success("A new code was sent.");
+    } catch (err) {
+      toast.error(errMsg(err));
     }
   }
 
@@ -164,11 +190,15 @@ function AuthPage() {
   const title =
     mode === "signin" ? "Welcome back"
       : mode === "signup" ? "Create your account"
+      : mode === "verify" ? "Verify your email"
+      : mode === "reset" ? "Set a new password"
       : "Reset your password";
   const subtitle =
     mode === "signin" ? "Sign in to continue to CurioNotes."
       : mode === "signup" ? "Start understanding anything with AI."
-      : "We'll email you a secure link to set a new password.";
+      : mode === "verify" ? `Enter the 6-digit code sent to ${email}.`
+      : mode === "reset" ? `Enter the code sent to ${email} and your new password.`
+      : "We'll email you a 6-digit code to reset your password.";
 
   return (
     <div className="min-h-screen bg-background">
@@ -188,7 +218,7 @@ function AuthPage() {
           </div>
 
           <div className="rounded-3xl border border-border/70 bg-card p-7 shadow-[0_8px_30px_-12px_rgba(0,0,0,0.08)]">
-            {mode !== "forgot" && (
+            {(mode === "signin" || mode === "signup") && (
               <>
                 <Button
                   type="button"
@@ -229,10 +259,22 @@ function AuthPage() {
                   </div>
                 </div>
 
-                {mode !== "forgot" && (
+                {(mode === "verify" || mode === "reset") && (
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
-                      <Label htmlFor="password" className="text-[13px]">Password</Label>
+                      <Label htmlFor="code" className="text-[13px]">Verification code</Label>
+                      <button type="button" onClick={handleResend} className="text-[12.5px] font-medium text-foreground/70 hover:text-foreground">Resend code</button>
+                    </div>
+                    <Input id="code" inputMode="numeric" autoComplete="one-time-code" required placeholder="000000"
+                      value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                      maxLength={6} className="h-12 rounded-xl text-center font-mono text-xl tracking-[0.5em]" />
+                  </div>
+                )}
+
+                {mode !== "forgot" && mode !== "verify" && (
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="password" className="text-[13px]">{mode === "reset" ? "New password" : "Password"}</Label>
                       {mode === "signin" && (
                         <button type="button" onClick={() => setMode("forgot")}
                           className="text-[12.5px] font-medium text-foreground/70 hover:text-foreground">
@@ -241,7 +283,7 @@ function AuthPage() {
                       )}
                     </div>
                     <PasswordField id="password" value={password} onChange={setPassword}
-                      autoComplete={mode === "signup" ? "new-password" : "current-password"}
+                      autoComplete={mode !== "signin" ? "new-password" : "current-password"}
                       placeholder="At least 8 characters" />
                   </div>
                 )}
@@ -251,7 +293,9 @@ function AuthPage() {
                   {loading ? <Loader2 className="h-4 w-4 animate-spin" />
                     : mode === "signin" ? "Sign in"
                     : mode === "signup" ? "Create account"
-                    : "Send reset link"}
+                    : mode === "verify" ? "Verify email"
+                    : mode === "reset" ? "Update password"
+                    : "Send code"}
                 </Button>
               </form>
             )}
@@ -269,7 +313,7 @@ function AuthPage() {
                     <button onClick={() => setMode("signin")} className="font-semibold text-foreground hover:underline">Sign in</button>
                   </>
                 )}
-                {mode === "forgot" && (
+                {(mode === "forgot" || mode === "verify" || mode === "reset") && (
                   <button onClick={() => setMode("signin")} className="font-semibold text-foreground hover:underline">Back to sign in</button>
                 )}
               </div>
