@@ -69,15 +69,23 @@ export async function verifyOtp(email: string, purpose: Purpose, code: string) {
 
 export async function sendEmail(to: string, subject: string, html: string) {
   const key = process.env["RESEND_API_KEY"];
-  if (!key) throw new Error("Email service not configured");
-  const res = await fetch("https://api.resend.com/emails", {
+  const lovableKey = process.env["LOVABLE_API_KEY"];
+  if (!key || !lovableKey) throw new Error("Email service not configured");
+  const res = await fetch("https://connector-gateway.lovable.dev/resend/emails", {
     method: "POST",
-    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+    headers: {
+      Authorization: `Bearer ${lovableKey}`,
+      "X-Connection-Api-Key": key,
+      "Content-Type": "application/json",
+    },
     body: JSON.stringify({ from: FROM, to: [to], subject, html }),
   });
   if (!res.ok) {
-    console.error(`Resend failed [${res.status}]: ${await res.text()}`);
-    throw new Error("Could not send email. Please try again.");
+    const body = await res.text();
+    console.error(`Resend failed [${res.status}]: ${body}`);
+    let msg = "Could not send email. Please try again.";
+    if (/domain/i.test(body) && /verif/i.test(body)) msg = "Email domain is not verified yet. Please try again later.";
+    throw new Error(msg);
   }
 }
 
