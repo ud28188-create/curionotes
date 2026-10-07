@@ -171,6 +171,18 @@ function AuthPage() {
   async function handleGoogle() {
     setGoogleLoading(true);
     try {
+      // The managed Google sign-in only works on Lovable-hosted domains.
+      // On self-hosted domains (e.g. Cloudflare Workers) use the direct OAuth flow.
+      const host = window.location.hostname;
+      const lovableHosted = host.endsWith(".lovable.app") || host.endsWith(".lovableproject.com") || host === "localhost";
+      if (!lovableHosted) {
+        const { error } = await supabase.auth.signInWithOAuth({
+          provider: "google",
+          options: { redirectTo: window.location.origin + "/auth" },
+        });
+        if (error) throw error;
+        return;
+      }
       const result = await lovable.auth.signInWithOAuth("google", {
         redirect_uri: window.location.origin,
       });
