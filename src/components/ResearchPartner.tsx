@@ -1,6 +1,4 @@
 import { Upload, Zap } from "lucide-react";
-import videoAsset from "@/assets/upload_your_sources.mp4.asset.json";
-import studyGuideAsset from "@/assets/study_guide.png.asset.json";
 
 export function ResearchPartner() {
   return (
@@ -25,7 +23,7 @@ export function ResearchPartner() {
           <div className="overflow-hidden rounded-[28px] bg-black shadow-[0_30px_80px_-40px_rgba(0,0,0,0.55)] ring-1 ring-border/60">
             <video
               className="h-full w-full object-cover"
-              src={videoAsset.url}
+              src="/upload_your_sources.mp4"
               autoPlay
               muted
               loop
@@ -49,7 +47,7 @@ export function ResearchPartner() {
           </div>
           <div className="overflow-hidden rounded-[28px] bg-black shadow-[0_30px_80px_-40px_rgba(0,0,0,0.55)] ring-1 ring-border/60 md:order-2">
             <img
-              src={studyGuideAsset.url}
+              src="/study_guide.png"
               alt="CurioNotes generating an instant study guide from uploaded sources"
               className="h-full w-full object-cover"
               loading="lazy"

@@ -1,5 +1,4 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import curioLogo from "@/assets/curionotes-logo.png.asset.json";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Plus, BookOpen, Pencil, Trash2, Search, Sparkles, Check, X } from "lucide-react";
@@ -97,7 +96,7 @@ function NotebooksPage() {
         <div className="mx-auto flex h-16 max-w-[1280px] items-center justify-between gap-3 px-4 sm:px-6">
           <Link to="/notebooks" className="flex items-center gap-2.5 min-w-0">
             <div className="h-8 w-8 shrink-0">
-              <img src={curioLogo.url} alt="CurioNotes logo" className="h-full w-full object-contain" />
+              <img src="/curionotes-logo.png" alt="CurioNotes logo" className="h-full w-full object-contain" />
             </div>
             <span className="truncate text-base font-bold sm:text-lg">CurioNotes</span>
           </Link>

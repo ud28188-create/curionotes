@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { streamText } from "ai";
 import { z } from "zod";
-import { createLovableAiGatewayProvider } from "./ai-gateway.server";
+import { createGoogleAiProvider } from "./ai-gateway.server";
 import { extractTextFromFile } from "./file-extract";
 
 const AskInput = z.object({
@@ -30,8 +30,8 @@ export const askNotes = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => AskInput.parse(input))
   .handler(async ({ data, context }) => {
-    const key = process.env.LOVABLE_API_KEY;
-    if (!key) throw new Error("Missing LOVABLE_API_KEY");
+    const key = process.env.GEMINI_API_KEY;
+    if (!key) throw new Error("Missing GEMINI_API_KEY");
 
     const { supabase, userId } = context;
 
@@ -140,8 +140,8 @@ ${skippedMedia > 0 ? `\nNote: ${skippedMedia} media source(s) could not be analy
 SOURCES:
 ${grounded}`;
 
-    const gateway = createLovableAiGatewayProvider(key);
-    const model = gateway("google/gemini-3-flash-preview");
+    const google = createGoogleAiProvider(key);
+    const model = google("gemini-3.8-flash");
 
     const userParts: Array<
       | { type: "text"; text: string }
@@ -161,7 +161,6 @@ ${grounded}`;
         messages: messages as never,
         maxRetries: 1,
         // Skip extended thinking for much faster answers.
-        providerOptions: { lovable: { reasoning: { enabled: false } } },
       });
       // Stream on the wire, resolve to text: long analyses no longer hit request timeouts.
       const text = await result.text;

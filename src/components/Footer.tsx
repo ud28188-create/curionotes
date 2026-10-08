@@ -1,5 +1,4 @@
 import { Link } from "@tanstack/react-router";
-import curioLogo from "@/assets/curionotes-logo.png.asset.json";
 import { Github, Twitter } from "lucide-react";
 
 export function Footer() {
@@ -10,7 +9,7 @@ export function Footer() {
           <div className="md:col-span-2">
             <div className="flex items-center gap-2.5">
               <div className="h-8 w-8">
-                <img src={curioLogo.url} alt="CurioNotes logo" className="h-full w-full object-contain" />
+                <img src="/curionotes-logo.png" alt="CurioNotes logo" className="h-full w-full object-contain" />
               </div>
               <span className="text-lg font-bold tracking-tight">CurioNotes</span>
             </div>

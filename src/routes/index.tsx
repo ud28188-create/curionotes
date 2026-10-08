@@ -1,5 +1,4 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import curioLogo from "@/assets/curionotes-logo.png.asset.json";
 import { Check, Play, FileText, ChevronDown, Github, Twitter, Sparkles, MessageSquare, Layers } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Footer } from "@/components/Footer";
@@ -20,7 +19,7 @@ function Logo() {
   return (
     <div className="flex items-center gap-2.5">
       <div className="relative h-9 w-9">
-        <img src={curioLogo.url} alt="CurioNotes logo" className="h-full w-full object-contain" />
+        <img src="/curionotes-logo.png" alt="CurioNotes logo" className="h-full w-full object-contain" />
       </div>
       <span className="text-[20px] font-bold tracking-tight text-foreground">CurioNotes</span>
     </div>

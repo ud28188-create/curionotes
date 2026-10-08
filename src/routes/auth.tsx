@@ -1,5 +1,4 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import curioLogo from "@/assets/curionotes-logo.png.asset.json";
 import { useEffect, useState } from "react";
 import { z } from "zod";
 import { toast } from "sonner";
@@ -10,7 +9,7 @@ import { lovable } from "@/integrations/lovable/index";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { startSignup, verifySignup, resendOtp, requestReset, confirmReset } from "@/lib/otp.functions";
+import { verifySignup, resendOtp, requestReset, confirmReset } from "@/lib/otp.functions";
 
 
 export const Route = createFileRoute("/auth")({
@@ -127,13 +126,28 @@ function AuthPage() {
 
       if (mode === "signup") {
         const name = displayName.trim().slice(0, 100);
-        const r = await startSignup({ data: { email: parsedEmail, password: parsedPassword, name: name || undefined } });
-        if (!r.ok) {
-          if (r.error.includes("already exists")) setMode("signin");
-          throw new Error(r.error);
+
+        const { data, error } = await supabase.auth.signUp({
+          email: parsedEmail,
+          password: parsedPassword,
+          options: {
+            data: {
+              display_name: name || undefined,
+            },
+            emailRedirectTo: `${window.location.origin}/auth`,
+          },
+        });
+
+        if (error) throw error;
+
+        if (data.session) {
+          toast.success("Account created successfully!");
+          navigate({ to: "/dashboard", replace: true });
+        } else {
+          toast.success("Account created. Please check your email to verify your account.");
+          setPassword("");
+          setMode("signin");
         }
-        toast.success("We sent a 6-digit code to your email.");
-        setCode(""); setMode("verify");
       } else {
         const { error } = await supabase.auth.signInWithPassword({
           email: parsedEmail,
@@ -223,7 +237,7 @@ function AuthPage() {
         <div className="mx-auto flex w-full max-w-[440px] flex-1 flex-col justify-center py-12">
           <div className="mb-8 text-center">
             <div className="mx-auto mb-6 h-12 w-12">
-              <img src={curioLogo.url} alt="CurioNotes logo" className="h-full w-full object-contain" />
+              <img src="/curionotes-logo.png" alt="CurioNotes logo" className="h-full w-full object-contain" />
             </div>
             <h1 className="text-[28px] font-bold tracking-tight text-foreground">{title}</h1>
             <p className="mt-2 text-[15px] text-muted-foreground">{subtitle}</p>
