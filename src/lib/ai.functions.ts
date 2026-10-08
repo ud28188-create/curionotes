@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { streamText } from "ai";
+import { generateText } from "ai";
 import { z } from "zod";
 import { createGoogleAiProvider } from "./ai-gateway.server";
 import { extractTextFromFile } from "./file-extract";
@@ -20,8 +20,8 @@ const AskInput = z.object({
     .default([]),
 });
 
-const MAX_CHARS_PER_NOTE = 12_000;
-const MAX_TOTAL_CHARS = 60_000;
+const MAX_CHARS_PER_NOTE = 8_000;
+const MAX_TOTAL_CHARS = 30_000;
 // Providers cap how many media links a single request may carry, and worker memory
 // caps how much we can inline. Keep media bounded so big selections never 500.
 const MAX_MEDIA_ITEMS = 8;
@@ -150,20 +150,19 @@ ${grounded}`;
     > = [...multimodalParts, { type: "text", text: data.question }];
 
     const messages = [
-      ...data.history.slice(-6).map((m) => ({ role: m.role, content: m.content })),
+      ...data.history.slice(-2).map((m) => ({ role: m.role, content: m.content })),
       { role: "user" as const, content: userParts },
     ];
 
     try {
-      const result = streamText({
+      const result = await generateText({
         model,
         system,
         messages: messages as never,
         maxRetries: 1,
-        // Skip extended thinking for much faster answers.
       });
-      // Stream on the wire, resolve to text: long analyses no longer hit request timeouts.
-      const text = await result.text;
+
+      const text = result.text;
       if (!text || !text.trim()) {
         throw new Error("The AI returned an empty answer. Try fewer sources or a simpler question.");
       }
@@ -172,8 +171,14 @@ ${grounded}`;
         skippedMedia,
       };
     } catch (e) {
+      console.error("askNotes failed", {
+        error: e,
+        message: e instanceof Error ? e.message : String(e),
+        cause: e instanceof Error ? e.cause : undefined,
+        stack: e instanceof Error ? e.stack : undefined,
+      });
+
       const msg = e instanceof Error ? e.message : String(e);
-      console.error("askNotes failed", msg);
       if (msg.includes("429")) throw new Error("AI is busy right now. Please retry in a few seconds.");
       if (msg.includes("402")) throw new Error("AI credits exhausted. Please upgrade your plan.");
       if (msg.includes("400"))
