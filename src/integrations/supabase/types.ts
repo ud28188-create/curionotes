@@ -14,6 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      account_subscriptions: {
+        Row: {
+          current_period_end: string | null
+          current_period_start: string | null
+          id: string
+          plan: string
+          razorpay_plan_id: string | null
+          razorpay_subscription_id: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          current_period_end?: string | null
+          current_period_start?: string | null
+          id?: string
+          plan?: string
+          razorpay_plan_id?: string | null
+          razorpay_subscription_id?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          current_period_end?: string | null
+          current_period_start?: string | null
+          id?: string
+          plan?: string
+          razorpay_plan_id?: string | null
+          razorpay_subscription_id?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       chat_messages: {
         Row: {
           content: string
