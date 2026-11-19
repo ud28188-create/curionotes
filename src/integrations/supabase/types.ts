@@ -233,6 +233,75 @@ export type Database = {
           },
         ]
       }
+      pro_payment_orders: {
+        Row: {
+          amount_paise: number
+          created_at: string
+          currency: string
+          id: string
+          idempotency_key: string
+          paid_at: string | null
+          plan_key: string
+          razorpay_order_id: string
+          razorpay_payment_id: string | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          amount_paise: number
+          created_at?: string
+          currency?: string
+          id?: string
+          idempotency_key: string
+          paid_at?: string | null
+          plan_key?: string
+          razorpay_order_id: string
+          razorpay_payment_id?: string | null
+          status?: string
+          user_id: string
+        }
+        Update: {
+          amount_paise?: number
+          created_at?: string
+          currency?: string
+          id?: string
+          idempotency_key?: string
+          paid_at?: string | null
+          plan_key?: string
+          razorpay_order_id?: string
+          razorpay_payment_id?: string | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      pro_plan_settings: {
+        Row: {
+          amount_paise: number
+          currency: string
+          duration_days: number
+          is_active: boolean
+          plan_key: string
+          updated_at: string
+        }
+        Insert: {
+          amount_paise?: number
+          currency?: string
+          duration_days?: number
+          is_active?: boolean
+          plan_key: string
+          updated_at?: string
+        }
+        Update: {
+          amount_paise?: number
+          currency?: string
+          duration_days?: number
+          is_active?: boolean
+          plan_key?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -265,6 +334,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      activate_pro_after_payment: {
+        Args: { p_razorpay_order_id: string; p_razorpay_payment_id: string }
+        Returns: Json
+      }
       get_user_id_by_email: { Args: { _email: string }; Returns: string }
     }
     Enums: {
