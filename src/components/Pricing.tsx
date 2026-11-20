@@ -4,7 +4,7 @@ import { Check, Sparkles } from "lucide-react";
 const tiers = [
   {
     name: "Free",
-    price: "$0",
+    price: "₹0",
     period: "forever",
     description: "Perfect for trying out AI-powered notes.",
     features: [
@@ -20,8 +20,8 @@ const tiers = [
   },
   {
     name: "Pro",
-    price: "$12",
-    period: "per month",
+    price: "₹199",
+    period: "one-time / 30 days",
     description: "For students and power learners.",
     features: [
       "Unlimited notebooks",
@@ -32,14 +32,14 @@ const tiers = [
       "Priority indexing",
       "Email support",
     ],
-    cta: "Start Pro trial",
-    href: "/auth",
+    cta: "Get Pro",
+    href: "/checkout/pro",
     highlight: true,
   },
   {
     name: "Business",
-    price: "$39",
-    period: "per user / month",
+    price: "₹599",
+    period: "one-time / 30 days",
     description: "Built for teams and research groups.",
     features: [
       "Everything in Pro",
