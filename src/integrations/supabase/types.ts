@@ -339,6 +339,11 @@ export type Database = {
         Returns: Json
       }
       get_user_id_by_email: { Args: { _email: string }; Returns: string }
+      reserve_pro_checkout: { Args: never; Returns: Json }
+      save_pro_subscription: {
+        Args: { p_plan_id: string; p_subscription_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
       note_kind:

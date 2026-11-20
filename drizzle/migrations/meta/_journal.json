@@ -15,6 +15,13 @@
       "when": 1795064302055,
       "tag": "0001_create_account_subscriptions",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1795139794982,
+      "tag": "0002_reserve_pro_subscription_checkout",
+      "breakpoints": true
     }
   ]
 }
