@@ -38,13 +38,10 @@ CurioNotes should feel like the combination of NotebookLM, Notion, Perplexity AI
 
 Design the entire interface with the elegance of Apple, the simplicity of Google, the productivity of Notion, the smooth interactions of Linear, and the professionalism of Stripe. Use generous whitespace, modern typography, soft shadows, subtle gradients, rounded corners (16–20px), smooth Framer Motion animations, premium cards, beautiful empty states, skeleton loaders, glassmorphism only where appropriate, responsive layouts, and a minimal color palette centered around white, black, emerald green, and blue. Every page should feel polished enough to be featured on Awwwards and Product Hunt. The application should look like a real startup ready for millions of users, not a student project.
 
-This project was built with [Lovable](https://lovable.dev).
 
-**Live app**: https://curionotes.lovable.app
+**Live app**: https://ud28188-create-curionotes.ud28188.workers.dev/
 
 ## Build with Lovable
-
-Continue developing this project in the [Lovable editor](https://lovable.dev/projects/621ff008-7691-4bbc-b70c-526148896c19).
 
 - **Ship faster**: describe what you want to build and Lovable handles the code.
 - **Stay in sync**: every change made in Lovable is committed straight to this repository.
